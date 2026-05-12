@@ -1,0 +1,14 @@
+name = "juxia-poster-api"
+main = "cloudflare-worker.js"
+compatibility_date = "2026-05-12"
+
+[vars]
+# 改成你的 GitHub Pages 地址，例如：
+# ALLOWED_ORIGIN = "https://your-name.github.io"
+ALLOWED_ORIGIN = "*"
+
+# 下面这些不要写在 toml 里，用 wrangler secret 设置：
+# wrangler secret put GEMINI_API_KEY
+# wrangler secret put DEEPSEEK_API_KEY
+# wrangler secret put ACCESS_USERNAME
+# wrangler secret put ACCESS_PASSWORD

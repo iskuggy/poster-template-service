@@ -1,0 +1,8 @@
+name = "juxia-poster-api"
+main = "cloudflare-worker.js"
+compatibility_date = "2026-05-12"
+workers_dev = true
+preview_urls = false
+
+[vars]
+ALLOWED_ORIGIN = "https://iskuggy.github.io"
