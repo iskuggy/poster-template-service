@@ -246,8 +246,10 @@
     /* ── Center Stage ── */
     .main-stage {
       min-width: 0;
+      min-height: 0;
       display: grid;
       grid-template-rows: auto minmax(0, 1fr);
+      overflow: hidden;
       background:
         radial-gradient(ellipse at 50% 0%, rgba(192,122,69,0.06), transparent 50%),
         linear-gradient(175deg, var(--bg-canvas), var(--bg-canvas-deeper));
@@ -259,6 +261,14 @@
       justify-content: space-between;
       gap: 12px;
       padding: 16px 22px 8px;
+    }
+
+    .stage-side {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
     }
 
     .stage-title {
@@ -275,11 +285,37 @@
       font-weight: 500;
     }
 
+    .preview-tools {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px;
+      border-radius: var(--radius-sm);
+      border: 1px solid rgba(160,155,149,0.24);
+      background: rgba(255,254,252,0.55);
+    }
+
+    .preview-tool {
+      min-width: 28px;
+      height: 26px;
+      padding: 0 8px;
+      border-radius: 5px;
+      color: var(--text-secondary);
+      font-size: 11px;
+      font-weight: 650;
+    }
+
+    .preview-tool:hover {
+      color: var(--accent-strong);
+      background: #fff;
+    }
+
     .canvas-wrap {
       min-height: 0;
-      display: flex;
-      justify-content: center;
-      align-items: flex-start;
+      height: 100%;
+      max-height: 100%;
+      display: block;
+      text-align: center;
       padding: 12px 20px 24px;
       overflow: auto;
       overscroll-behavior: contain;
@@ -299,6 +335,7 @@
       display: grid;
       place-items: center;
       flex: 0 0 auto;
+      margin: 0 auto;
       transition: none;
     }
 
@@ -1421,7 +1458,14 @@
             <h2 class="stage-title">生成结果</h2>
             <div class="stage-meta" id="resultMeta">3:4 / 等待生成</div>
           </div>
-          <div class="stage-meta" id="canvasSize">1080 × 1440</div>
+          <div class="stage-side">
+            <div class="stage-meta" id="canvasSize">1080 × 1440</div>
+            <div class="preview-tools" aria-label="预览缩放">
+              <button class="preview-tool" type="button" id="previewZoomOut" title="缩小预览">−</button>
+              <button class="preview-tool" type="button" id="previewZoomFit" title="适应宽度">适宽</button>
+              <button class="preview-tool" type="button" id="previewZoomIn" title="放大预览">＋</button>
+            </div>
+          </div>
         </div>
 
         <div class="canvas-wrap" id="canvasWrap">
@@ -1674,7 +1718,8 @@
       optimizerProvider: "deepseek",
       lastRun: null,
       lastImageUrl: "",
-      generationCount: 0
+      generationCount: 0,
+      previewZoom: 1.6
     };
 
     const ruleText = {
@@ -1829,13 +1874,19 @@
       const [ratioW, ratioH] = spec.ratio.split(":").map(Number);
       if (!ratioW || !ratioH) return;
 
-      const safeInsetX = 40;
+      const safeInsetX = 24;
       const availableW = Math.max(220, canvasWrap.clientWidth - safeInsetX);
-      const width = Math.floor(Math.min(availableW, 860));
+      const zoom = Number.isFinite(state.previewZoom) ? state.previewZoom : 1.6;
+      const width = Math.floor(Math.min(Math.max(availableW * zoom, 360), 1400));
       const height = Math.floor(width * (ratioH / ratioW));
 
       resultFrame.style.width = `${width}px`;
       resultFrame.style.height = `${height}px`;
+    }
+
+    function updatePreviewZoom(nextZoom) {
+      state.previewZoom = Math.max(0.8, Math.min(1.8, nextZoom));
+      fitPosterFrame();
     }
 
     function updateGenerationCount() {
@@ -1861,7 +1912,7 @@
         "请基于上传参考图片中的产品，创作一张高级质感的小红书产品种草海报。画面必须具备商业可用性、产品识别度和审美高级感。",
         "重要硬约束：海报上出现的品牌、主标题、副标题、卖点必须严格使用下方中文原文；不得翻译成英文，不得改写，不得替换，不得新增无关文字。",
         `输出规格硬约束：${outputSpec.prompt}`,
-        "成片硬约束：输出必须是最终海报画面本身，画面需要铺满整个画布；禁止生成任何额外外边框、灰色边框、黑色边框、白色留边、卡片底板、圆角画框、相框、展示样机或截图背景。",
+        "成片硬约束：输出必须是最终海报画面本身，画面需要铺满整个画布；四个角必须是直角方形画布；禁止生成任何额外外边框、灰色边框、黑色边框、白色留边、卡片底板、圆角画框、相框、展示样机或截图背景。Full-bleed rectangular poster only, no border, no rounded corners, no black matte, no mockup frame.",
         "",
         "一、核心文案：",
         `- 品牌：${brand}`,
@@ -2178,6 +2229,120 @@
       return null;
     }
 
+    function loadImageSource(src) {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.crossOrigin = "anonymous";
+        img.onload = () => resolve(img);
+        img.onerror = () => reject(new Error("图片载入失败，无法处理边缘。"));
+        img.src = src;
+      });
+    }
+
+    function isDarkMattePixel(data, index) {
+      const alpha = data[index + 3];
+      const red = data[index];
+      const green = data[index + 1];
+      const blue = data[index + 2];
+      return alpha < 12 || (alpha > 220 && red < 18 && green < 18 && blue < 18);
+    }
+
+    function matteRatioInRect(data, imageWidth, x, y, width, height) {
+      let matte = 0;
+      let total = 0;
+      const startX = Math.max(0, x);
+      const startY = Math.max(0, y);
+      const endX = Math.min(imageWidth, x + width);
+      const endY = Math.min(data.length / 4 / imageWidth, y + height);
+      for (let py = startY; py < endY; py += 1) {
+        for (let px = startX; px < endX; px += 1) {
+          total += 1;
+          if (isDarkMattePixel(data, (py * imageWidth + px) * 4)) matte += 1;
+        }
+      }
+      return total ? matte / total : 0;
+    }
+
+    async function removeOuterDarkMatte(imageSource) {
+      const img = await loadImageSource(imageSource);
+      const width = img.naturalWidth || img.width;
+      const height = img.naturalHeight || img.height;
+      if (!width || !height) return imageSource;
+
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d", { willReadFrequently: true });
+      ctx.drawImage(img, 0, 0);
+
+      const imageData = ctx.getImageData(0, 0, width, height);
+      const data = imageData.data;
+      const probe = Math.max(18, Math.floor(Math.min(width, height) * 0.035));
+      const cornerRatios = [
+        matteRatioInRect(data, width, 0, 0, probe, probe),
+        matteRatioInRect(data, width, width - probe, 0, probe, probe),
+        matteRatioInRect(data, width, 0, height - probe, probe, probe),
+        matteRatioInRect(data, width, width - probe, height - probe, probe, probe)
+      ];
+      const darkCorners = cornerRatios.filter(ratio => ratio > 0.7).length;
+      if (darkCorners < 2) return imageSource;
+
+      let minX = width;
+      let minY = height;
+      let maxX = -1;
+      let maxY = -1;
+
+      for (let y = 0; y < height; y += 1) {
+        for (let x = 0; x < width; x += 1) {
+          if (!isDarkMattePixel(data, (y * width + x) * 4)) {
+            if (x < minX) minX = x;
+            if (y < minY) minY = y;
+            if (x > maxX) maxX = x;
+            if (y > maxY) maxY = y;
+          }
+        }
+      }
+
+      if (maxX <= minX || maxY <= minY) return imageSource;
+
+      let left = minX;
+      let top = minY;
+      let right = maxX;
+      let bottom = maxY;
+      const maxInset = Math.min(72, Math.floor((right - left) * 0.06), Math.floor((bottom - top) * 0.06));
+      let inset = 0;
+
+      const cornerStillDark = () => {
+        const sample = 10;
+        return (
+          matteRatioInRect(data, width, left + inset, top + inset, sample, sample) > 0.3 ||
+          matteRatioInRect(data, width, right - inset - sample + 1, top + inset, sample, sample) > 0.3 ||
+          matteRatioInRect(data, width, left + inset, bottom - inset - sample + 1, sample, sample) > 0.3 ||
+          matteRatioInRect(data, width, right - inset - sample + 1, bottom - inset - sample + 1, sample, sample) > 0.3
+        );
+      };
+
+      while (inset < maxInset && cornerStillDark()) {
+        inset += 1;
+      }
+
+      left += inset;
+      top += inset;
+      right -= inset;
+      bottom -= inset;
+
+      const cropWidth = right - left + 1;
+      const cropHeight = bottom - top + 1;
+      const removedEnough = left > 2 || top > 2 || width - right > 3 || height - bottom > 3;
+      if (!removedEnough || cropWidth < width * 0.72 || cropHeight < height * 0.72) return imageSource;
+
+      const output = document.createElement("canvas");
+      output.width = cropWidth;
+      output.height = cropHeight;
+      output.getContext("2d").drawImage(canvas, left, top, cropWidth, cropHeight, 0, 0, cropWidth, cropHeight);
+      return output.toDataURL("image/png");
+    }
+
     function extractModelText(data) {
       const choice = data?.choices?.[0] || {};
       const message = choice.message || {};
@@ -2474,16 +2639,17 @@
       return normalizeImageResponse(await response.json());
     }
 
-    function renderResult(imageSource, runConfig) {
+    async function renderResult(imageSource, runConfig) {
+      const displaySource = await removeOuterDarkMatte(imageSource).catch(() => imageSource);
       resultFrame.classList.remove("empty");
       resultFrame.innerHTML = "";
       const img = new Image();
       img.alt = "生成的小红书产品种草海报";
-      img.src = imageSource;
+      img.src = displaySource;
       resultFrame.appendChild(img);
 
-      state.lastImageUrl = imageSource;
-      downloadImage.href = imageSource;
+      state.lastImageUrl = displaySource;
+      downloadImage.href = displaySource;
       downloadImage.classList.add("visible");
       retryGenerate.disabled = false;
       resultFrame.style.aspectRatio = getOutputSpec(runConfig.size).ratioCss;
@@ -2548,7 +2714,7 @@
           throw new Error("接口返回中没有找到图片地址或 Gemini inlineData。");
         }
 
-        renderResult(imageSource, runConfig);
+        await renderResult(imageSource, runConfig);
         finishProgress("图片已完成 ✅", "success");
       } catch (error) {
         resultMeta.textContent = "生成失败";
@@ -2695,6 +2861,9 @@
       setStatus("已恢复当前设计方向的默认预设。", "success", 0, "真实状态：请求尚未发出");
     });
     fields.modalSize.addEventListener("change", updateOutputPreview);
+    document.getElementById("previewZoomOut").addEventListener("click", () => updatePreviewZoom(state.previewZoom - 0.12));
+    document.getElementById("previewZoomFit").addEventListener("click", () => updatePreviewZoom(1));
+    document.getElementById("previewZoomIn").addEventListener("click", () => updatePreviewZoom(state.previewZoom + 0.12));
 
     document.getElementById("generateImage").addEventListener("click", () => generateImage());
     document.getElementById("generateImageStage").addEventListener("click", () => generateImage());
