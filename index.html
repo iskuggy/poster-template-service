@@ -1035,6 +1035,113 @@
     }
 
     /* ═══════════════════════════════════════════════
+       ACCESS GATE
+       ═══════════════════════════════════════════════ */
+
+    body.auth-pending {
+      overflow: hidden;
+    }
+
+    body.auth-pending .app {
+      filter: blur(10px);
+      pointer-events: none;
+      user-select: none;
+    }
+
+    .auth-screen {
+      position: fixed;
+      inset: 0;
+      z-index: 80;
+      display: none;
+      place-items: center;
+      padding: 24px;
+      background:
+        radial-gradient(circle at 50% 0%, rgba(192,122,69,0.14), transparent 38%),
+        rgba(242,239,233,0.92);
+      backdrop-filter: blur(18px) saturate(1.2);
+      -webkit-backdrop-filter: blur(18px) saturate(1.2);
+    }
+
+    body.auth-pending .auth-screen {
+      display: grid;
+    }
+
+    .auth-card {
+      width: min(420px, 100%);
+      border-radius: var(--radius-xl);
+      background: #FFFEFC;
+      border: 1px solid var(--border-light);
+      box-shadow: var(--shadow-modal);
+      padding: 28px;
+      display: grid;
+      gap: 18px;
+      animation: modalIn 0.25s ease;
+    }
+
+    .auth-brand {
+      display: flex;
+      align-items: center;
+      gap: 11px;
+    }
+
+    .auth-brand .brand-mark {
+      width: 38px;
+      height: 38px;
+      border-radius: 9px;
+      font-size: 13px;
+    }
+
+    .auth-title {
+      margin: 0;
+      font-size: 18px;
+      line-height: 1.25;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+
+    .auth-desc {
+      margin: 4px 0 0;
+      color: var(--text-tertiary);
+      font-size: 12px;
+      line-height: 1.55;
+    }
+
+    .auth-form {
+      display: grid;
+      gap: 12px;
+    }
+
+    .auth-inline {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      color: var(--text-secondary);
+      font-size: 12px;
+    }
+
+    .auth-inline label {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 0;
+      cursor: pointer;
+    }
+
+    .auth-inline input {
+      width: 14px;
+      min-height: 14px;
+      accent-color: var(--accent);
+    }
+
+    .auth-error {
+      min-height: 18px;
+      color: var(--danger);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    /* ═══════════════════════════════════════════════
        RESPONSIVE
        ═══════════════════════════════════════════════ */
 
@@ -1139,7 +1246,38 @@
   </style>
 </head>
 
-<body>
+<body class="auth-pending">
+  <div class="auth-screen" id="authScreen" aria-live="polite">
+    <section class="auth-card" aria-labelledby="authTitle">
+      <div class="auth-brand">
+        <div class="brand-mark">JX</div>
+        <div>
+          <h2 class="auth-title" id="authTitle">JUXIA DESIGN LAB</h2>
+          <p class="auth-desc">内部海报生成工具，请使用团队访问凭据进入。</p>
+        </div>
+      </div>
+
+      <form class="auth-form" id="authForm">
+        <div class="field">
+          <label for="authUsername">访问账号</label>
+          <input id="authUsername" autocomplete="username" value="juxia-team" placeholder="内部账号">
+        </div>
+        <div class="field">
+          <label for="authPassword">访问密码</label>
+          <input id="authPassword" type="password" autocomplete="current-password" placeholder="内部访问密码">
+        </div>
+        <div class="auth-inline">
+          <label for="rememberAccess">
+            <input id="rememberAccess" type="checkbox">
+            记住本机登录
+          </label>
+        </div>
+        <p class="auth-error" id="authError"></p>
+        <button class="button primary" type="submit" id="authSubmit">进入工作台</button>
+      </form>
+    </section>
+  </div>
+
   <main class="app">
     <!-- ═══ TOP BAR ═══ -->
     <header class="topbar">
@@ -1170,6 +1308,7 @@
           <svg class="icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 15.5A3.5 3.5 0 1 0 12 8a3.5 3.5 0 0 0 0 7.5Z" stroke="currentColor" stroke-width="1.8"/><path d="M19.4 13.5a7.7 7.7 0 0 0 .05-1.5l2-1.55-2-3.46-2.42.98a7.43 7.43 0 0 0-1.3-.76L15.35 4h-4l-.36 3.21c-.47.2-.91.46-1.31.76l-2.43-.98-2 3.46L7.27 12a7.7 7.7 0 0 0 .05 1.5l-2.07 1.6 2 3.46 2.52-1.02c.37.27.77.5 1.2.68l.38 3.28h4l.38-3.28c.43-.18.83-.41 1.2-.68l2.52 1.02 2-3.46-2.05-1.6Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
           设置
         </button>
+        <button class="button ghost" type="button" id="logoutAccess">退出</button>
         <button class="button primary" type="button" id="generateImage">
           <svg class="icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m12 3 1.8 5.1L19 10l-5.2 1.9L12 17l-1.8-5.1L5 10l5.2-1.9L12 3Z" fill="currentColor"/><path d="m18.5 14 1 2.7 2.5.8-2.5.9-1 2.6-1-2.6-2.5-.9 2.5-.8 1-2.7Z" fill="currentColor"/></svg>
           生成海报
@@ -1650,9 +1789,16 @@
     const settingsModal = document.getElementById("settingsModal");
     const generatePresetButton = document.getElementById("generatePreset");
     const generationCount = document.getElementById("generationCount");
+    const authForm = document.getElementById("authForm");
+    const authUsername = document.getElementById("authUsername");
+    const authPassword = document.getElementById("authPassword");
+    const authSubmit = document.getElementById("authSubmit");
+    const authError = document.getElementById("authError");
+    const rememberAccess = document.getElementById("rememberAccess");
     let progressTimer = null;
     let elapsedTimer = null;
     const SETTINGS_STORAGE_KEY = "juxiaDesignLabSettings";
+    const ACCESS_STORAGE_KEY = "juxiaDesignLabAccess";
     const REQUEST_TIMEOUT_MS = 180000;
     const DEEPSEEK_TIMEOUT_MS = 90000;
 
@@ -1758,6 +1904,7 @@
             ...state.apiConfig,
             ...saved.apiConfig
           };
+          state.apiConfig.accessPassword = "";
           if (!saved.outputSpecVersion && saved.apiConfig.size === "1080x1350") {
             state.apiConfig.size = "1080x1440";
           }
@@ -1792,7 +1939,10 @@
     function persistSettings() {
       localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify({
         outputSpecVersion: 2,
-        apiConfig: state.apiConfig,
+        apiConfig: {
+          ...state.apiConfig,
+          accessPassword: ""
+        },
         deepseekConfig: state.deepseekConfig,
         geminiOptimizerConfig: state.geminiOptimizerConfig,
         optimizerProvider: state.optimizerProvider,
@@ -1876,13 +2026,15 @@
       }
     }
 
-    function getProxyAuthHeaders() {
-      const username = state.apiConfig.accessUsername || "";
-      const password = state.apiConfig.accessPassword || "";
+    function makeBasicAuthHeader(username, password) {
       if (!username || !password) return {};
       return {
         "Authorization": `Basic ${btoa(`${username}:${password}`)}`
       };
+    }
+
+    function getProxyAuthHeaders() {
+      return makeBasicAuthHeader(state.apiConfig.accessUsername || "", state.apiConfig.accessPassword || "");
     }
 
     function resolveWorkerEndpoint(path) {
@@ -1896,6 +2048,87 @@
       } catch {
         return path;
       }
+    }
+
+    function getAuthEndpoint() {
+      return resolveWorkerEndpoint("/api/auth-check");
+    }
+
+    function setAuthError(message) {
+      authError.textContent = message || "";
+    }
+
+    function unlockApp() {
+      document.body.classList.remove("auth-pending");
+      setAuthError("");
+      hydrateSettingsFields();
+      persistSettings();
+    }
+
+    async function verifyAccess(username, password) {
+      const response = await fetchWithTimeout(getAuthEndpoint(), {
+        method: "GET",
+        headers: makeBasicAuthHeader(username, password)
+      }, 15000);
+
+      if (!response.ok) {
+        throw new Error(response.status === 401 ? "账号或密码不正确。" : `访问校验失败：HTTP ${response.status}`);
+      }
+
+      const data = await response.json().catch(() => ({}));
+      if (!data.ok) {
+        throw new Error("访问校验没有返回通过状态。");
+      }
+    }
+
+    async function loginWithCredentials(username, password, remember = true) {
+      setAuthError("");
+      authSubmit.disabled = true;
+      authSubmit.textContent = "正在校验";
+      try {
+        await verifyAccess(username, password);
+        state.apiConfig.accessUsername = username.trim();
+        state.apiConfig.accessPassword = password;
+        if (remember) {
+          localStorage.setItem(ACCESS_STORAGE_KEY, JSON.stringify({
+            username: state.apiConfig.accessUsername,
+            password: state.apiConfig.accessPassword
+          }));
+        } else {
+          localStorage.removeItem(ACCESS_STORAGE_KEY);
+        }
+        unlockApp();
+        setStatus("访问校验通过。", "success", 0, "真实状态：Worker 已确认内部凭据");
+      } catch (error) {
+        setAuthError(error.message || "访问校验失败，请检查账号密码。");
+      } finally {
+        authSubmit.disabled = false;
+        authSubmit.textContent = "进入工作台";
+      }
+    }
+
+    async function initializeAccessGate() {
+      authUsername.value = state.apiConfig.accessUsername || "juxia-team";
+      try {
+        const raw = localStorage.getItem(ACCESS_STORAGE_KEY);
+        if (!raw) return;
+        const saved = JSON.parse(raw);
+        if (!saved.username || !saved.password) return;
+        authUsername.value = saved.username;
+        authPassword.value = saved.password;
+        await loginWithCredentials(saved.username, saved.password, true);
+      } catch {
+        localStorage.removeItem(ACCESS_STORAGE_KEY);
+      }
+    }
+
+    function logoutAccess() {
+      localStorage.removeItem(ACCESS_STORAGE_KEY);
+      state.apiConfig.accessPassword = "";
+      fields.accessPassword.value = "";
+      authPassword.value = "";
+      document.body.classList.add("auth-pending");
+      setStatus("已退出内部访问。", "warning", 0, "真实状态：本机登录凭据已清除");
     }
 
     function fileToBase64(file) {
@@ -2379,7 +2612,7 @@
     }
 
     document.querySelectorAll("input, textarea, select").forEach(input => {
-      const settingsIds = ["serviceSelect", "modalSize", "proxyEndpoint", "modalApiKey", "accessUsername", "accessPassword", "optimizerProvider", "deepseekApiKey", "deepseekModel", "deepseekEndpoint", "geminiOptimizerApiKey", "geminiOptimizerModel"];
+      const settingsIds = ["serviceSelect", "modalSize", "proxyEndpoint", "modalApiKey", "accessUsername", "accessPassword", "optimizerProvider", "deepseekApiKey", "deepseekModel", "deepseekEndpoint", "geminiOptimizerApiKey", "geminiOptimizerModel", "authUsername", "authPassword", "rememberAccess"];
       if (!settingsIds.includes(input.id) && input.type !== "file") {
         if (input.id === "designMode") {
           input.addEventListener("change", () => {
@@ -2452,6 +2685,17 @@
     document.getElementById("closeSettings").addEventListener("click", closeSettings);
     document.getElementById("cancelSettings").addEventListener("click", closeSettings);
     document.getElementById("saveSettings").addEventListener("click", saveSettings);
+    document.getElementById("logoutAccess").addEventListener("click", logoutAccess);
+    authForm.addEventListener("submit", event => {
+      event.preventDefault();
+      const username = authUsername.value.trim();
+      const password = authPassword.value;
+      if (!username || !password) {
+        setAuthError("请输入访问账号和密码。");
+        return;
+      }
+      loginWithCredentials(username, password, rememberAccess.checked);
+    });
     fields.serviceSelect.addEventListener("change", toggleServiceFields);
     fields.modalModel.addEventListener("change", () => {
       syncModelFromControl();
@@ -2571,6 +2815,7 @@
     refreshPrompt();
     toggleServiceFields();
     updateRuntimeNotice();
+    initializeAccessGate();
   </script>
 </body>
 </html>

@@ -183,6 +183,10 @@ export default {
       return unauthorized(env);
     }
 
+    if (url.pathname === "/api/auth-check" && request.method === "GET") {
+      return jsonResponse({ ok: true }, 200, env);
+    }
+
     if (url.pathname === "/api/gemini-image" && request.method === "POST") {
       return handleGeminiImage(request, env);
     }
