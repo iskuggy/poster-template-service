@@ -277,10 +277,12 @@
 
     .canvas-wrap {
       min-height: 0;
-      display: grid;
-      place-items: center;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
       padding: 12px 20px 24px;
       overflow: auto;
+      overscroll-behavior: contain;
     }
 
     /* ── Poster Frame ── */
@@ -288,7 +290,6 @@
       width: min(100%, 620px);
       height: auto;
       max-width: 100%;
-      max-height: 100%;
       aspect-ratio: 3 / 4;
       border-radius: 0;
       background: transparent;
@@ -297,7 +298,7 @@
       position: relative;
       display: grid;
       place-items: center;
-      align-self: center;
+      flex: 0 0 auto;
       transition: none;
     }
 
@@ -1829,11 +1830,8 @@
       if (!ratioW || !ratioH) return;
 
       const safeInsetX = 40;
-      const safeInsetY = 36;
       const availableW = Math.max(220, canvasWrap.clientWidth - safeInsetX);
-      const availableH = Math.max(260, canvasWrap.clientHeight - safeInsetY);
-      const widthByHeight = availableH * (ratioW / ratioH);
-      const width = Math.floor(Math.min(availableW, widthByHeight, 780));
+      const width = Math.floor(Math.min(availableW, 860));
       const height = Math.floor(width * (ratioH / ratioW));
 
       resultFrame.style.width = `${width}px`;
@@ -2490,6 +2488,7 @@
       retryGenerate.disabled = false;
       resultFrame.style.aspectRatio = getOutputSpec(runConfig.size).ratioCss;
       fitPosterFrame();
+      canvasWrap.scrollTop = 0;
       resultMeta.textContent = `${runConfig.size.replace("x", " × ")} / ${getOutputSpec(runConfig.size).ratio} / 已生成`;
       state.generationCount += 1;
       updateGenerationCount();
