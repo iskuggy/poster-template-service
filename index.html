@@ -316,9 +316,33 @@
       max-height: 100%;
       display: block;
       text-align: center;
-      padding: 12px 20px 24px;
+      padding: 12px 20px 168px;
       overflow: auto;
       overscroll-behavior: contain;
+      scrollbar-gutter: stable both-edges;
+    }
+
+    .canvas-wrap::-webkit-scrollbar {
+      width: 12px;
+      height: 12px;
+    }
+
+    .canvas-wrap::-webkit-scrollbar-track {
+      background: rgba(255,254,252,0.42);
+      border-radius: 999px;
+    }
+
+    .canvas-wrap::-webkit-scrollbar-thumb {
+      background: rgba(139,79,43,0.38);
+      border: 3px solid transparent;
+      border-radius: 999px;
+      background-clip: padding-box;
+    }
+
+    .canvas-wrap::-webkit-scrollbar-thumb:hover {
+      background: rgba(139,79,43,0.56);
+      border: 3px solid transparent;
+      background-clip: padding-box;
     }
 
     /* ── Poster Frame ── */
@@ -1461,6 +1485,8 @@
           <div class="stage-side">
             <div class="stage-meta" id="canvasSize">1080 × 1440</div>
             <div class="preview-tools" aria-label="预览缩放">
+              <button class="preview-tool" type="button" id="previewScrollTop" title="回到海报顶部">顶</button>
+              <button class="preview-tool" type="button" id="previewScrollBottom" title="查看海报底部">底</button>
               <button class="preview-tool" type="button" id="previewZoomOut" title="缩小预览">−</button>
               <button class="preview-tool" type="button" id="previewZoomFit" title="适应宽度">适宽</button>
               <button class="preview-tool" type="button" id="previewZoomIn" title="放大预览">＋</button>
@@ -1887,6 +1913,15 @@
     function updatePreviewZoom(nextZoom) {
       state.previewZoom = Math.max(0.8, Math.min(1.8, nextZoom));
       fitPosterFrame();
+    }
+
+    function scrollPreviewTo(position) {
+      if (!canvasWrap) return;
+      const maxScroll = Math.max(0, canvasWrap.scrollHeight - canvasWrap.clientHeight);
+      canvasWrap.scrollTo({
+        top: position === "bottom" ? maxScroll : 0,
+        behavior: "smooth"
+      });
     }
 
     function updateGenerationCount() {
@@ -2655,7 +2690,7 @@
       resultFrame.style.aspectRatio = getOutputSpec(runConfig.size).ratioCss;
       fitPosterFrame();
       canvasWrap.scrollTop = 0;
-      resultMeta.textContent = `${runConfig.size.replace("x", " × ")} / ${getOutputSpec(runConfig.size).ratio} / 已生成`;
+      resultMeta.textContent = `${runConfig.size.replace("x", " × ")} / ${getOutputSpec(runConfig.size).ratio} / 已生成，可滚动查看`;
       state.generationCount += 1;
       updateGenerationCount();
       persistSettings();
@@ -2861,9 +2896,17 @@
       setStatus("已恢复当前设计方向的默认预设。", "success", 0, "真实状态：请求尚未发出");
     });
     fields.modalSize.addEventListener("change", updateOutputPreview);
+    document.getElementById("previewScrollTop").addEventListener("click", () => scrollPreviewTo("top"));
+    document.getElementById("previewScrollBottom").addEventListener("click", () => scrollPreviewTo("bottom"));
     document.getElementById("previewZoomOut").addEventListener("click", () => updatePreviewZoom(state.previewZoom - 0.12));
     document.getElementById("previewZoomFit").addEventListener("click", () => updatePreviewZoom(1));
     document.getElementById("previewZoomIn").addEventListener("click", () => updatePreviewZoom(state.previewZoom + 0.12));
+    canvasWrap.addEventListener("wheel", event => {
+      if (canvasWrap.scrollHeight <= canvasWrap.clientHeight) return;
+      const before = canvasWrap.scrollTop;
+      canvasWrap.scrollTop += event.deltaY;
+      if (canvasWrap.scrollTop !== before) event.preventDefault();
+    }, { passive: false });
 
     document.getElementById("generateImage").addEventListener("click", () => generateImage());
     document.getElementById("generateImageStage").addEventListener("click", () => generateImage());
