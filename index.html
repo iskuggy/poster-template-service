@@ -285,11 +285,10 @@
 
     /* ── Poster Frame ── */
     .poster-frame {
-      width: min(
-        calc((100vh - 48px - 56px) * 0.78),
-        calc(100% - 32px),
-        780px
-      );
+      width: min(100%, 620px);
+      height: auto;
+      max-width: 100%;
+      max-height: 100%;
       aspect-ratio: 3 / 4;
       border-radius: 0;
       background: transparent;
@@ -1237,6 +1236,7 @@
 
       .poster-frame {
         width: min(96vw, 620px);
+        height: auto;
       }
 
       .right-panel .panel-inner {
@@ -1423,7 +1423,7 @@
           <div class="stage-meta" id="canvasSize">1080 × 1440</div>
         </div>
 
-        <div class="canvas-wrap">
+        <div class="canvas-wrap" id="canvasWrap">
           <div class="poster-frame empty" id="resultFrame">
             <div class="empty-poster">
               <div class="empty-icon">
@@ -1777,6 +1777,7 @@
     const statusMessage = document.getElementById("statusMessage");
     const statusDetail = document.getElementById("statusDetail");
     const progressBar = document.getElementById("progressBar");
+    const canvasWrap = document.getElementById("canvasWrap");
     const resultFrame = document.getElementById("resultFrame");
     const resultMeta = document.getElementById("resultMeta");
     const canvasSize = document.getElementById("canvasSize");
@@ -1813,11 +1814,30 @@
     function updateOutputPreview() {
       const spec = getOutputSpec(fields.modalSize.value || state.apiConfig.size);
       resultFrame.style.aspectRatio = spec.ratioCss;
+      fitPosterFrame();
       canvasSize.textContent = (fields.modalSize.value || state.apiConfig.size).replace("x", " × ");
       resultMeta.textContent = resultMeta.textContent.includes("已生成")
         ? resultMeta.textContent
         : `${spec.ratio} / 等待生成`;
       if (sizeHint) sizeHint.textContent = spec.hint;
+    }
+
+    function fitPosterFrame() {
+      if (!canvasWrap || !resultFrame) return;
+      const spec = getOutputSpec(fields.modalSize?.value || state.apiConfig.size);
+      const [ratioW, ratioH] = spec.ratio.split(":").map(Number);
+      if (!ratioW || !ratioH) return;
+
+      const safeInsetX = 40;
+      const safeInsetY = 36;
+      const availableW = Math.max(220, canvasWrap.clientWidth - safeInsetX);
+      const availableH = Math.max(260, canvasWrap.clientHeight - safeInsetY);
+      const widthByHeight = availableH * (ratioW / ratioH);
+      const width = Math.floor(Math.min(availableW, widthByHeight, 780));
+      const height = Math.floor(width * (ratioH / ratioW));
+
+      resultFrame.style.width = `${width}px`;
+      resultFrame.style.height = `${height}px`;
     }
 
     function updateGenerationCount() {
@@ -2469,6 +2489,7 @@
       downloadImage.classList.add("visible");
       retryGenerate.disabled = false;
       resultFrame.style.aspectRatio = getOutputSpec(runConfig.size).ratioCss;
+      fitPosterFrame();
       resultMeta.textContent = `${runConfig.size.replace("x", " × ")} / ${getOutputSpec(runConfig.size).ratio} / 已生成`;
       state.generationCount += 1;
       updateGenerationCount();
@@ -2741,6 +2762,7 @@
       function setColumns(left, main, right) {
         workspace.style.gridTemplateColumns =
           `${left}px 8px ${main}px 8px ${right}px`;
+        requestAnimationFrame(fitPosterFrame);
       }
 
       function startDrag(side, splitter, e) {
@@ -2809,6 +2831,11 @@
         document.body.style.userSelect = '';
       });
     })();
+
+    window.addEventListener("resize", fitPosterFrame);
+    if ("ResizeObserver" in window) {
+      new ResizeObserver(() => fitPosterFrame()).observe(canvasWrap);
+    }
 
     loadSavedSettings();
     hydrateSettingsFields();
