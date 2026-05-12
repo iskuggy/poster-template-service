@@ -263,14 +263,6 @@
       padding: 16px 22px 8px;
     }
 
-    .stage-side {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      flex-wrap: wrap;
-      justify-content: flex-end;
-    }
-
     .stage-title {
       font-size: 14px;
       font-weight: 700;
@@ -285,38 +277,13 @@
       font-weight: 500;
     }
 
-    .preview-tools {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      padding: 3px;
-      border-radius: var(--radius-sm);
-      border: 1px solid rgba(160,155,149,0.24);
-      background: rgba(255,254,252,0.55);
-    }
-
-    .preview-tool {
-      min-width: 28px;
-      height: 26px;
-      padding: 0 8px;
-      border-radius: 5px;
-      color: var(--text-secondary);
-      font-size: 11px;
-      font-weight: 650;
-    }
-
-    .preview-tool:hover {
-      color: var(--accent-strong);
-      background: #fff;
-    }
-
     .canvas-wrap {
       min-height: 0;
       height: 100%;
       max-height: 100%;
       display: block;
       text-align: center;
-      padding: 12px 20px 168px;
+      padding: 12px 16px 96px;
       overflow: auto;
       overscroll-behavior: contain;
       scrollbar-gutter: stable both-edges;
@@ -1482,16 +1449,7 @@
             <h2 class="stage-title">生成结果</h2>
             <div class="stage-meta" id="resultMeta">3:4 / 等待生成</div>
           </div>
-          <div class="stage-side">
-            <div class="stage-meta" id="canvasSize">1080 × 1440</div>
-            <div class="preview-tools" aria-label="预览缩放">
-              <button class="preview-tool" type="button" id="previewScrollTop" title="回到海报顶部">顶</button>
-              <button class="preview-tool" type="button" id="previewScrollBottom" title="查看海报底部">底</button>
-              <button class="preview-tool" type="button" id="previewZoomOut" title="缩小预览">−</button>
-              <button class="preview-tool" type="button" id="previewZoomFit" title="适应宽度">适宽</button>
-              <button class="preview-tool" type="button" id="previewZoomIn" title="放大预览">＋</button>
-            </div>
-          </div>
+          <div class="stage-meta" id="canvasSize">1080 × 1440</div>
         </div>
 
         <div class="canvas-wrap" id="canvasWrap">
@@ -1744,8 +1702,7 @@
       optimizerProvider: "deepseek",
       lastRun: null,
       lastImageUrl: "",
-      generationCount: 0,
-      previewZoom: 1.6
+      generationCount: 0
     };
 
     const ruleText = {
@@ -1900,28 +1857,13 @@
       const [ratioW, ratioH] = spec.ratio.split(":").map(Number);
       if (!ratioW || !ratioH) return;
 
-      const safeInsetX = 24;
+      const safeInsetX = 8;
       const availableW = Math.max(220, canvasWrap.clientWidth - safeInsetX);
-      const zoom = Number.isFinite(state.previewZoom) ? state.previewZoom : 1.6;
-      const width = Math.floor(Math.min(Math.max(availableW * zoom, 360), 1400));
+      const width = Math.floor(availableW);
       const height = Math.floor(width * (ratioH / ratioW));
 
       resultFrame.style.width = `${width}px`;
       resultFrame.style.height = `${height}px`;
-    }
-
-    function updatePreviewZoom(nextZoom) {
-      state.previewZoom = Math.max(0.8, Math.min(1.8, nextZoom));
-      fitPosterFrame();
-    }
-
-    function scrollPreviewTo(position) {
-      if (!canvasWrap) return;
-      const maxScroll = Math.max(0, canvasWrap.scrollHeight - canvasWrap.clientHeight);
-      canvasWrap.scrollTo({
-        top: position === "bottom" ? maxScroll : 0,
-        behavior: "smooth"
-      });
     }
 
     function updateGenerationCount() {
@@ -2690,7 +2632,7 @@
       resultFrame.style.aspectRatio = getOutputSpec(runConfig.size).ratioCss;
       fitPosterFrame();
       canvasWrap.scrollTop = 0;
-      resultMeta.textContent = `${runConfig.size.replace("x", " × ")} / ${getOutputSpec(runConfig.size).ratio} / 已生成，可滚动查看`;
+      resultMeta.textContent = `${runConfig.size.replace("x", " × ")} / ${getOutputSpec(runConfig.size).ratio} / 已生成，滚动查看完整海报`;
       state.generationCount += 1;
       updateGenerationCount();
       persistSettings();
@@ -2896,11 +2838,6 @@
       setStatus("已恢复当前设计方向的默认预设。", "success", 0, "真实状态：请求尚未发出");
     });
     fields.modalSize.addEventListener("change", updateOutputPreview);
-    document.getElementById("previewScrollTop").addEventListener("click", () => scrollPreviewTo("top"));
-    document.getElementById("previewScrollBottom").addEventListener("click", () => scrollPreviewTo("bottom"));
-    document.getElementById("previewZoomOut").addEventListener("click", () => updatePreviewZoom(state.previewZoom - 0.12));
-    document.getElementById("previewZoomFit").addEventListener("click", () => updatePreviewZoom(1));
-    document.getElementById("previewZoomIn").addEventListener("click", () => updatePreviewZoom(state.previewZoom + 0.12));
     canvasWrap.addEventListener("wheel", event => {
       if (canvasWrap.scrollHeight <= canvasWrap.clientHeight) return;
       const before = canvasWrap.scrollTop;
