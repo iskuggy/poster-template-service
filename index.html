@@ -343,8 +343,116 @@
       width: 100%;
       height: 100%;
       display: block;
-      object-fit: contain;
+      object-fit: cover;
       background: transparent;
+    }
+
+    .poster-art {
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+    }
+
+    .poster-text-layer {
+      position: absolute;
+      inset: 0;
+      z-index: 2;
+      pointer-events: none;
+      color: var(--poster-title-color, #171412);
+      font-family: var(--font-ui);
+    }
+
+    .poster-brand-copy,
+    .poster-title-group,
+    .poster-selling-copy {
+      position: absolute;
+      max-width: 86%;
+      overflow-wrap: break-word;
+    }
+
+    .poster-brand-copy {
+      top: 5.8%;
+      left: 50%;
+      transform: translateX(-50%);
+      color: var(--poster-brand-color, #171412);
+      font-size: clamp(11px, calc(var(--poster-w, 520px) * 0.034), 32px);
+      line-height: 1.1;
+      font-weight: 500;
+      letter-spacing: 0.42em;
+      text-align: center;
+      text-transform: uppercase;
+      text-shadow: var(--poster-brand-shadow, 0 1px 16px rgba(255,255,255,0.72));
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .poster-title-group {
+      top: 15%;
+      left: 7%;
+      width: 80%;
+      text-align: left;
+      color: var(--poster-title-color, #171412);
+      text-shadow: var(--poster-title-shadow, 0 1px 18px rgba(255,255,255,0.78));
+    }
+
+    .poster-title-copy {
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      font-size: clamp(25px, calc(var(--poster-w, 520px) * 0.095), 92px);
+      line-height: 1.03;
+      font-weight: 800;
+      letter-spacing: 0;
+      overflow-wrap: anywhere;
+      text-wrap: balance;
+    }
+
+    .poster-subtitle-copy {
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      margin-top: clamp(7px, calc(var(--poster-w, 520px) * 0.018), 18px);
+      font-size: clamp(15px, calc(var(--poster-w, 520px) * 0.045), 42px);
+      line-height: 1.18;
+      font-weight: 500;
+      letter-spacing: 0;
+      overflow-wrap: anywhere;
+      text-wrap: balance;
+    }
+
+    .poster-selling-copy {
+      left: 50%;
+      bottom: 4.8%;
+      transform: translateX(-50%);
+      width: 86%;
+      color: var(--poster-selling-color, #f7f4ed);
+      font-size: clamp(12px, calc(var(--poster-w, 520px) * 0.03), 28px);
+      line-height: 1.25;
+      font-weight: 500;
+      letter-spacing: 0;
+      text-align: center;
+      text-shadow: var(--poster-selling-shadow, 0 2px 18px rgba(0,0,0,0.45));
+      overflow-wrap: anywhere;
+      text-wrap: balance;
+    }
+
+    .poster-text-layer[data-layout="premium"] .poster-title-group,
+    .poster-text-layer[data-layout="editorial"] .poster-title-group {
+      left: 50%;
+      width: 78%;
+      transform: translateX(-50%);
+      text-align: center;
+    }
+
+    .poster-text-layer[data-layout="premium"] .poster-title-group {
+      top: 14%;
+    }
+
+    .poster-text-layer[data-layout="editorial"] .poster-title-group {
+      top: 18%;
     }
 
     /* ── Empty Poster ── */
@@ -1702,13 +1810,14 @@
       optimizerProvider: "deepseek",
       lastRun: null,
       lastImageUrl: "",
+      lastTextColors: null,
       generationCount: 0
     };
 
     const ruleText = {
       completeProduct: "完整出镜：产品必须完整可见，不能被画幅、文字、前景物、边缘或阴影遮挡，底部和边角保留清晰安全距离。",
       productTruth: "产品真实：严格参考上传图的外观、比例、材质、颜色、结构和关键细节，不为了氛围改造产品。",
-      readableText: "中文原文：品牌、主标题、副标题、卖点必须逐字使用用户输入的原文，禁止翻译成英文，禁止改写、增删或乱造文字。",
+      readableText: "文字前端叠加：AI 不负责生成海报文字，只负责预留干净可读的排版区域；品牌、标题、副标题、卖点由网页固定渲染。",
       cleanBackground: "背景克制：场景只负责提升产品气质，虚化且低干扰；人物、道具、环境不能抢占主体。",
       premiumColor: "低饱和色彩：整体明亮、干净、低饱和，有自然冷暖关系；避免荧光色、脏灰、过度 HDR 和廉价滤镜。",
       commercialCrop: "电商构图：严格遵守当前选择的发布比例，产品主体清晰，信息层级明确，顶部品牌、中部标题、底部卖点各自拥有稳定留白。"
@@ -1866,6 +1975,8 @@
 
       resultFrame.style.width = `${width}px`;
       resultFrame.style.height = `${height}px`;
+      resultFrame.style.setProperty("--poster-w", `${width}px`);
+      resultFrame.style.setProperty("--poster-h", `${height}px`);
     }
 
     function updateGenerationCount() {
@@ -1879,25 +1990,42 @@
       fields.negative.value = preset.negative;
     }
 
-    function buildPrompt() {
-      const brand = fields.brand.value.trim() || "桔下 JUXIA";
-      const headline = fields.headline.value.trim() || "专注钓箱";
-      const subtitle = fields.subtitle.value.trim() || "专注热爱";
-      const sellingPoint = fields.sellingPoint.value.trim() || "29L｜72H";
-      const mode = designModeText[fields.designMode.value] || designModeText.cinematic;
-      const outputSpec = getOutputSpec(state.apiConfig.size);
+    function getPosterCopy() {
+      return {
+        brand: fields.brand.value.trim() || "桔下 JUXIA",
+        headline: fields.headline.value.trim() || "专注钓箱",
+        subtitle: fields.subtitle.value.trim() || "专注热爱",
+        sellingPoint: fields.sellingPoint.value.trim() || "29L｜72H"
+      };
+    }
+
+    function getModelPromptStrategy(model = state.apiConfig.model) {
+      if (model === "gemini-2.5-flash-image") {
+        return [
+          "模型策略：Nano Banana 快速版。使用更短、更确定的摄影指令，减少复杂排版要求。",
+          "只生成无字商业摄影底图；不要尝试生成海报文字。优先保证产品完整、场景干净、留白稳定。"
+        ];
+      }
 
       return [
-        "请基于上传参考图片中的产品，创作一张高级质感的小红书产品种草海报。画面必须具备商业可用性、产品识别度和审美高级感。",
-        "重要硬约束：海报上出现的品牌、主标题、副标题、卖点必须严格使用下方中文原文；不得翻译成英文，不得改写，不得替换，不得新增无关文字。",
+        "模型策略：Nano Banana Pro。强调参考图一致性、商业摄影质感、清晰产品主体、稳定画面安全区。",
+        "只生成无字底图，不生成任何海报文字；为前端文字层预留干净空间，让后续固定排版更稳定。"
+      ];
+    }
+
+    function buildPrompt() {
+      const mode = designModeText[fields.designMode.value] || designModeText.cinematic;
+      const outputSpec = getOutputSpec(state.apiConfig.size);
+      const modelStrategy = getModelPromptStrategy(fields.modalModel?.value || state.apiConfig.model);
+
+      return [
+        "请基于上传参考图片中的产品，创作一张高级质感的小红书产品海报底图。画面必须具备商业可用性、产品识别度和审美高级感。",
+        "重要硬约束：这一步只生成无字底图，最终品牌、标题、副标题和卖点会由网页前端单独叠加。模型不得生成任何海报文案、标题、标语、字幕、促销文字、英文短句、装饰字母或水印。参考产品自身已有铭牌和 logo 可以保持真实，但不要额外放大、改写或新增文字。",
         `输出规格硬约束：${outputSpec.prompt}`,
         "成片硬约束：输出必须是最终海报画面本身，画面需要铺满整个画布；四个角必须是直角方形画布；禁止生成任何额外外边框、灰色边框、黑色边框、白色留边、卡片底板、圆角画框、相框、展示样机或截图背景。Full-bleed rectangular poster only, no border, no rounded corners, no black matte, no mockup frame.",
         "",
-        "一、核心文案：",
-        `- 品牌：${brand}`,
-        `- 主标题：${headline}`,
-        `- 副标题：${subtitle}`,
-        `- 底部卖点：${sellingPoint}`,
+        "一、模型适配策略：",
+        ...modelStrategy.map(item => `- ${item}`),
         "",
         "二、设计方向与场景策略：",
         `- ${mode}`,
@@ -1910,13 +2038,11 @@
         "- 产品必须完整出镜，四周尤其底部要有明确安全边距；不要让产品贴住画面底边，不要让产品任何部分被裁切、遮挡或被画幅边缘压住。",
         "- 背景需要服务产品气质，不要喧宾夺主；人物如出现，只能作为远景虚化叙事元素。",
         "",
-        "四、海报排版：",
-        `- 品牌“${brand}”放在顶部，字号小，字距略宽，克制稳定。`,
-        `- 主标题“${headline}”作为片名式标题，少字、疏朗、有呼吸感。`,
-        `- 副标题“${subtitle}”作为轻量 tagline，层级低于主标题。`,
-        `- 底部卖点“${sellingPoint}”像电影海报底部字幕或产品信息，低调清晰；文字必须放在产品下方安全留白或画面底部留白中，不得压住产品。`,
-        "- 所有文字必须是可读中文原文。不要把“专注钓箱”翻译为 fishing box，不要把“专注热爱”翻译为 focus fishing。",
-        "- 中文排版要高级：边距充分、对齐明确、不要遮挡产品主体。",
+        "四、前端文字层预留区：",
+        "- 顶部 5%-10% 预留品牌区，背景保持干净、低干扰，但不要生成任何品牌文字。",
+        "- 中上部 14%-34% 预留标题区，背景要有足够明暗对比和留白，不能有复杂纹理、人物脸部或产品关键结构穿过。",
+        "- 底部 4%-10% 预留卖点区，背景保持平稳，不要放重要产品结构；卖点文字会由前端覆盖在这里。",
+        "- 不要把这些预留区做成卡片、色块或边框，只需要自然、干净、可读的画面空间。",
         "",
         "五、摄影与后期：",
         `- 目标画幅：${outputSpec.name}，${state.apiConfig.size.replace("x", "×")}，${outputSpec.ratio}。真实商业摄影质感，柔和自然光或棚拍柔光，低饱和高级色彩。`,
@@ -1924,7 +2050,8 @@
         "- 成片检查：产品底部、把手、边角和关键结构必须全部可见，不能出现下半部分被挡住或裁掉的情况。",
         "",
         "六、负面约束：",
-        `- ${fields.negative.value.trim()}`
+        `- ${fields.negative.value.trim()}`,
+        "- 不要生成海报文字、标题、字幕、品牌字样、slogan、caption、typography、watermark、英文短句或任何额外文字。"
       ].join("\n");
     }
 
@@ -1940,6 +2067,7 @@
         fields.designMode.options[fields.designMode.selectedIndex].textContent;
       document.getElementById("designModeHint").textContent = designModeHint[fields.designMode.value] || "";
       updateOutputPreview();
+      renderPosterTextLayer();
     }
 
     function loadSavedSettings() {
@@ -2322,6 +2450,275 @@
       return output.toDataURL("image/png");
     }
 
+    function parseSize(size = state.apiConfig.size) {
+      const [width, height] = String(size || "1080x1440").split("x").map(Number);
+      return {
+        width: width || 1080,
+        height: height || 1440
+      };
+    }
+
+    function escapeHTML(value) {
+      return String(value || "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#39;");
+    }
+
+    function drawImageCover(ctx, img, width, height) {
+      const sourceW = img.naturalWidth || img.width;
+      const sourceH = img.naturalHeight || img.height;
+      const scale = Math.max(width / sourceW, height / sourceH);
+      const drawW = sourceW * scale;
+      const drawH = sourceH * scale;
+      const x = (width - drawW) / 2;
+      const y = (height - drawH) / 2;
+      ctx.drawImage(img, x, y, drawW, drawH);
+    }
+
+    function sampleLuminance(data, canvasWidth, rect) {
+      const startX = Math.max(0, Math.floor(rect.x));
+      const startY = Math.max(0, Math.floor(rect.y));
+      const endX = Math.min(canvasWidth, Math.floor(rect.x + rect.width));
+      const canvasHeight = data.length / 4 / canvasWidth;
+      const endY = Math.min(canvasHeight, Math.floor(rect.y + rect.height));
+      let total = 0;
+      let count = 0;
+      for (let y = startY; y < endY; y += 4) {
+        for (let x = startX; x < endX; x += 4) {
+          const index = (y * canvasWidth + x) * 4;
+          total += data[index] * 0.299 + data[index + 1] * 0.587 + data[index + 2] * 0.114;
+          count += 1;
+        }
+      }
+      return count ? total / count : 255;
+    }
+
+    function textToneForLuminance(luma) {
+      const dark = luma > 148;
+      return dark
+        ? { color: "#171412", shadow: "0 1px 18px rgba(255,255,255,0.78)" }
+        : { color: "#fffaf2", shadow: "0 2px 18px rgba(0,0,0,0.48)" };
+    }
+
+    async function analyzePosterTextColors(imageSource, runConfig) {
+      const img = await loadImageSource(imageSource);
+      const { width, height } = parseSize(runConfig?.size || state.apiConfig.size);
+      const sampleW = 240;
+      const sampleH = Math.round(sampleW * height / width);
+      const canvas = document.createElement("canvas");
+      canvas.width = sampleW;
+      canvas.height = sampleH;
+      const ctx = canvas.getContext("2d", { willReadFrequently: true });
+      drawImageCover(ctx, img, sampleW, sampleH);
+      const data = ctx.getImageData(0, 0, sampleW, sampleH).data;
+      const titleTone = textToneForLuminance(sampleLuminance(data, sampleW, {
+        x: sampleW * 0.06,
+        y: sampleH * 0.13,
+        width: sampleW * 0.82,
+        height: sampleH * 0.25
+      }));
+      const brandTone = textToneForLuminance(sampleLuminance(data, sampleW, {
+        x: sampleW * 0.24,
+        y: sampleH * 0.04,
+        width: sampleW * 0.52,
+        height: sampleH * 0.08
+      }));
+      const sellingTone = textToneForLuminance(sampleLuminance(data, sampleW, {
+        x: sampleW * 0.08,
+        y: sampleH * 0.88,
+        width: sampleW * 0.84,
+        height: sampleH * 0.09
+      }));
+      return { brand: brandTone, title: titleTone, selling: sellingTone };
+    }
+
+    function applyPosterTextColors(colors = state.lastTextColors) {
+      if (!colors) return;
+      resultFrame.style.setProperty("--poster-brand-color", colors.brand.color);
+      resultFrame.style.setProperty("--poster-brand-shadow", colors.brand.shadow);
+      resultFrame.style.setProperty("--poster-title-color", colors.title.color);
+      resultFrame.style.setProperty("--poster-title-shadow", colors.title.shadow);
+      resultFrame.style.setProperty("--poster-selling-color", colors.selling.color);
+      resultFrame.style.setProperty("--poster-selling-shadow", colors.selling.shadow);
+    }
+
+    function renderPosterTextLayer(colors = state.lastTextColors) {
+      if (!state.lastImageUrl || resultFrame.classList.contains("empty")) return;
+      applyPosterTextColors(colors);
+      const copy = getPosterCopy();
+      resultFrame.querySelector(".poster-text-layer")?.remove();
+      const layer = document.createElement("div");
+      layer.className = "poster-text-layer";
+      layer.dataset.layout = fields.designMode.value || "cinematic";
+      layer.innerHTML = `
+        <div class="poster-brand-copy">${escapeHTML(copy.brand)}</div>
+        <div class="poster-title-group">
+          <div class="poster-title-copy">${escapeHTML(copy.headline)}</div>
+          <div class="poster-subtitle-copy">${escapeHTML(copy.subtitle)}</div>
+        </div>
+        <div class="poster-selling-copy">${escapeHTML(copy.sellingPoint)}</div>
+      `;
+      resultFrame.appendChild(layer);
+    }
+
+    function getPosterFontFamily() {
+      return getComputedStyle(document.documentElement).getPropertyValue("--font-ui").trim()
+        || "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+    }
+
+    function splitLongCanvasToken(ctx, token, maxWidth) {
+      const parts = [];
+      let chunk = "";
+      Array.from(String(token || "")).forEach(char => {
+        const next = `${chunk}${char}`;
+        if (ctx.measureText(next).width <= maxWidth || !chunk) {
+          chunk = next;
+        } else {
+          parts.push(chunk);
+          chunk = char;
+        }
+      });
+      if (chunk) parts.push(chunk);
+      return parts;
+    }
+
+    function ellipsizeCanvasText(ctx, text, maxWidth) {
+      const chars = Array.from(String(text || ""));
+      let output = "";
+      for (const char of chars) {
+        const next = `${output}${char}`;
+        if (ctx.measureText(`${next}...`).width <= maxWidth || !output) {
+          output = next;
+        } else {
+          return `${output.trimEnd()}...`;
+        }
+      }
+      return output;
+    }
+
+    function wrapCanvasText(ctx, text, maxWidth, maxLines = Infinity) {
+      const source = String(text || "").trim();
+      if (!source) return [];
+      const hasSpaces = /\s/.test(source);
+      const tokens = hasSpaces ? source.split(/\s+/) : Array.from(source);
+      const lines = [];
+      let line = "";
+      tokens.forEach(token => {
+        if (ctx.measureText(token).width > maxWidth) {
+          if (line) {
+            lines.push(line);
+            line = "";
+          }
+          lines.push(...splitLongCanvasToken(ctx, token, maxWidth));
+          return;
+        }
+
+        const next = hasSpaces && line ? `${line} ${token}` : `${line}${token}`;
+        if (ctx.measureText(next).width <= maxWidth || !line) {
+          line = next;
+        } else {
+          lines.push(line);
+          line = token;
+        }
+      });
+      if (line) lines.push(line);
+
+      if (Number.isFinite(maxLines) && lines.length > maxLines) {
+        const kept = lines.slice(0, maxLines);
+        kept[maxLines - 1] = ellipsizeCanvasText(ctx, lines.slice(maxLines - 1).join(hasSpaces ? " " : ""), maxWidth);
+        return kept;
+      }
+
+      return lines;
+    }
+
+    function drawCanvasTextLines(ctx, lines, x, y, lineHeight) {
+      lines.forEach((line, index) => {
+        ctx.fillText(line, x, y + index * lineHeight);
+      });
+    }
+
+    function applyCanvasTextStyle(ctx, tone, blur = 18) {
+      ctx.fillStyle = tone.color;
+      ctx.shadowColor = tone.color === "#171412" ? "rgba(255,255,255,0.78)" : "rgba(0,0,0,0.48)";
+      ctx.shadowBlur = blur;
+      ctx.shadowOffsetX = 0;
+      ctx.shadowOffsetY = tone.color === "#171412" ? 1 : 2;
+    }
+
+    function drawPosterCopyToCanvas(ctx, width, height, colors) {
+      const copy = getPosterCopy();
+      const layout = fields.designMode.value || "cinematic";
+      const fontFamily = getPosterFontFamily();
+      ctx.save();
+      ctx.textBaseline = "top";
+
+      applyCanvasTextStyle(ctx, colors.brand, width * 0.018);
+      ctx.textAlign = "center";
+      ctx.font = `500 ${Math.max(24, Math.min(52, width * 0.034))}px ${fontFamily}`;
+      if ("letterSpacing" in ctx) ctx.letterSpacing = `${Math.max(5, width * 0.012)}px`;
+      ctx.fillText(ellipsizeCanvasText(ctx, copy.brand.toUpperCase(), width * 0.86), width / 2, height * 0.058);
+      if ("letterSpacing" in ctx) ctx.letterSpacing = "0px";
+
+      const centered = layout === "premium" || layout === "editorial";
+      const groupTop = height * (layout === "editorial" ? 0.18 : layout === "premium" ? 0.14 : 0.15);
+      const maxWidth = width * (centered ? 0.78 : 0.8);
+      const left = centered ? width / 2 : width * 0.07;
+      ctx.textAlign = centered ? "center" : "left";
+      applyCanvasTextStyle(ctx, colors.title, width * 0.02);
+
+      let titleSize = Math.max(48, Math.min(112, width * 0.095));
+      let titleLines = [];
+      while (titleSize > 42) {
+        ctx.font = `800 ${titleSize}px ${fontFamily}`;
+        titleLines = wrapCanvasText(ctx, copy.headline, maxWidth, 3);
+        if (titleLines.length <= 2) break;
+        titleSize -= 4;
+      }
+
+      const titleLineHeight = titleSize * 1.03;
+      drawCanvasTextLines(ctx, titleLines, left, groupTop, titleLineHeight);
+
+      const subtitleSize = Math.max(26, Math.min(52, width * 0.045));
+      ctx.font = `500 ${subtitleSize}px ${fontFamily}`;
+      const subtitleY = groupTop + titleLines.length * titleLineHeight + width * 0.02;
+      const subtitleLines = wrapCanvasText(ctx, copy.subtitle, maxWidth, 2);
+      drawCanvasTextLines(ctx, subtitleLines, left, subtitleY, subtitleSize * 1.18);
+
+      applyCanvasTextStyle(ctx, colors.selling, width * 0.018);
+      ctx.textAlign = "center";
+      const sellingSize = Math.max(24, Math.min(40, width * 0.03));
+      ctx.font = `500 ${sellingSize}px ${fontFamily}`;
+      ctx.fillText(ellipsizeCanvasText(ctx, copy.sellingPoint, width * 0.86), width / 2, height * 0.94);
+      ctx.restore();
+    }
+
+    async function composePosterPng(imageSource, runConfig) {
+      if (document.fonts?.ready) await document.fonts.ready;
+      const img = await loadImageSource(imageSource);
+      const { width, height } = parseSize(runConfig?.size || state.apiConfig.size);
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      drawImageCover(ctx, img, width, height);
+      const colors = state.lastTextColors || await analyzePosterTextColors(imageSource, runConfig);
+      drawPosterCopyToCanvas(ctx, width, height, colors);
+      return canvas.toDataURL("image/png");
+    }
+
+    function triggerDownload(dataUrl, filename = "juxia-poster.png") {
+      const link = document.createElement("a");
+      link.href = dataUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    }
+
     function extractModelText(data) {
       const choice = data?.choices?.[0] || {};
       const message = choice.message || {};
@@ -2620,21 +3017,24 @@
 
     async function renderResult(imageSource, runConfig) {
       const displaySource = await removeOuterDarkMatte(imageSource).catch(() => imageSource);
+      state.lastTextColors = await analyzePosterTextColors(displaySource, runConfig).catch(() => null);
       resultFrame.classList.remove("empty");
       resultFrame.innerHTML = "";
       const img = new Image();
       img.alt = "生成的小红书产品种草海报";
+      img.className = "poster-art";
       img.src = displaySource;
       resultFrame.appendChild(img);
 
       state.lastImageUrl = displaySource;
-      downloadImage.href = displaySource;
+      downloadImage.href = "#";
       downloadImage.classList.add("visible");
       retryGenerate.disabled = false;
       resultFrame.style.aspectRatio = getOutputSpec(runConfig.size).ratioCss;
       fitPosterFrame();
+      renderPosterTextLayer(state.lastTextColors);
       canvasWrap.scrollTop = 0;
-      resultMeta.textContent = `${runConfig.size.replace("x", " × ")} / ${getOutputSpec(runConfig.size).ratio} / 已生成，滚动查看完整海报`;
+      resultMeta.textContent = `${runConfig.size.replace("x", " × ")} / ${getOutputSpec(runConfig.size).ratio} / 已生成，文字已前端排版`;
       state.generationCount += 1;
       updateGenerationCount();
       persistSettings();
@@ -2851,6 +3251,22 @@
     document.getElementById("generateImageStage").addEventListener("click", () => generateImage());
     retryGenerate.addEventListener("click", () => {
       if (state.lastRun) generateImage(state.lastRun);
+    });
+    downloadImage.addEventListener("click", async event => {
+      event.preventDefault();
+      if (!state.lastImageUrl) return;
+      const originalText = downloadImage.textContent;
+      downloadImage.textContent = "合成中";
+      downloadImage.style.pointerEvents = "none";
+      try {
+        const dataUrl = await composePosterPng(state.lastImageUrl, state.lastRun || state.apiConfig);
+        triggerDownload(dataUrl);
+      } catch (error) {
+        setStatus(error.message || "合成下载失败。", "error", 0, "真实状态：Canvas 合成未完成");
+      } finally {
+        downloadImage.textContent = originalText;
+        downloadImage.style.pointerEvents = "";
+      }
     });
 
     document.getElementById("openSettings").addEventListener("click", openSettings);
