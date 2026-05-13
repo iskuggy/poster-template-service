@@ -371,39 +371,40 @@
     }
 
     .poster-brand-copy {
-      top: 5.8%;
+      top: 5.2%;
       left: 50%;
       transform: translateX(-50%);
       color: var(--poster-brand-color, #171412);
-      font-size: clamp(11px, calc(var(--poster-w, 520px) * 0.034), 32px);
+      font-size: clamp(10px, calc(var(--poster-w, 520px) * 0.026), 22px);
       line-height: 1.1;
-      font-weight: 500;
-      letter-spacing: 0.42em;
+      font-weight: 600;
+      letter-spacing: 0;
       text-align: center;
       text-transform: uppercase;
-      text-shadow: var(--poster-brand-shadow, 0 1px 16px rgba(255,255,255,0.72));
+      text-shadow: var(--poster-brand-shadow, 0 1px 6px rgba(255,255,255,0.5));
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
 
     .poster-title-group {
-      top: 15%;
-      left: 7%;
-      width: 80%;
-      text-align: left;
+      top: 11.5%;
+      left: 50%;
+      width: 82%;
+      transform: translateX(-50%);
+      text-align: center;
       color: var(--poster-title-color, #171412);
-      text-shadow: var(--poster-title-shadow, 0 1px 18px rgba(255,255,255,0.78));
+      text-shadow: var(--poster-title-shadow, 0 1px 8px rgba(255,255,255,0.58));
     }
 
     .poster-title-copy {
       display: -webkit-box;
-      -webkit-line-clamp: 3;
+      -webkit-line-clamp: 2;
       -webkit-box-orient: vertical;
       overflow: hidden;
-      font-size: clamp(25px, calc(var(--poster-w, 520px) * 0.095), 92px);
-      line-height: 1.03;
-      font-weight: 800;
+      font-size: clamp(25px, calc(var(--poster-w, 520px) * 0.082), 76px);
+      line-height: 1.04;
+      font-weight: 700;
       letter-spacing: 0;
       overflow-wrap: anywhere;
       text-wrap: balance;
@@ -414,9 +415,9 @@
       -webkit-line-clamp: 2;
       -webkit-box-orient: vertical;
       overflow: hidden;
-      margin-top: clamp(7px, calc(var(--poster-w, 520px) * 0.018), 18px);
-      font-size: clamp(15px, calc(var(--poster-w, 520px) * 0.045), 42px);
-      line-height: 1.18;
+      margin-top: clamp(6px, calc(var(--poster-w, 520px) * 0.014), 14px);
+      font-size: clamp(14px, calc(var(--poster-w, 520px) * 0.035), 32px);
+      line-height: 1.22;
       font-weight: 500;
       letter-spacing: 0;
       overflow-wrap: anywhere;
@@ -429,30 +430,32 @@
       transform: translateX(-50%);
       width: 86%;
       color: var(--poster-selling-color, #f7f4ed);
-      font-size: clamp(12px, calc(var(--poster-w, 520px) * 0.03), 28px);
+      font-size: clamp(11px, calc(var(--poster-w, 520px) * 0.025), 23px);
       line-height: 1.25;
-      font-weight: 500;
+      font-weight: 600;
       letter-spacing: 0;
       text-align: center;
-      text-shadow: var(--poster-selling-shadow, 0 2px 18px rgba(0,0,0,0.45));
+      text-shadow: var(--poster-selling-shadow, 0 1px 8px rgba(0,0,0,0.36));
       overflow-wrap: anywhere;
       text-wrap: balance;
     }
 
-    .poster-text-layer[data-layout="premium"] .poster-title-group,
-    .poster-text-layer[data-layout="editorial"] .poster-title-group {
-      left: 50%;
-      width: 78%;
-      transform: translateX(-50%);
-      text-align: center;
+    .poster-text-layer[data-layout="cinematic"] .poster-title-group {
+      top: 10.8%;
     }
 
     .poster-text-layer[data-layout="premium"] .poster-title-group {
-      top: 14%;
+      top: 9.6%;
+      width: 78%;
+    }
+
+    .poster-text-layer[data-layout="lifestyle"] .poster-title-group {
+      top: 10.8%;
     }
 
     .poster-text-layer[data-layout="editorial"] .poster-title-group {
-      top: 18%;
+      top: 12.8%;
+      width: 76%;
     }
 
     /* ── Empty Poster ── */
@@ -2090,8 +2093,9 @@
         "- 画面内不要出现任何真实可读的广告牌、路牌、包装文字、屏幕文字或额外品牌标识；避免模型误写字。",
         "",
         "五、前端文字层预留区：",
-        "- 顶部 5%-10% 预留品牌区，背景保持干净、低干扰，但不要生成任何品牌文字。",
-        "- 中上部 14%-40% 预留标题区，背景要有足够明暗对比和留白，不能有复杂纹理、人物脸部、车体高亮边缘或产品关键结构穿过。",
+        "- 排版风格为现代科技品牌广告式极简文字系统：居中、少字、大留白、强层级，不需要模型生成任何文字或图形装饰。",
+        "- 顶部 5%-9% 预留品牌区，背景保持干净、低干扰，但不要生成任何品牌文字。",
+        "- 中上部 10%-34% 预留居中标题区，背景要有足够明暗对比和留白，不能有复杂纹理、人物脸部、车体高亮边缘或产品关键结构穿过。",
         "- 底部 4%-10% 预留卖点区，背景保持平稳，不要放重要产品结构；卖点文字会由前端覆盖在这里。",
         "- 不要把这些预留区做成卡片、色块或边框，只需要自然、干净、可读的画面空间。",
         "",
@@ -2551,8 +2555,8 @@
     function textToneForLuminance(luma) {
       const dark = luma > 148;
       return dark
-        ? { color: "#171412", shadow: "0 1px 18px rgba(255,255,255,0.78)" }
-        : { color: "#fffaf2", shadow: "0 2px 18px rgba(0,0,0,0.48)" };
+        ? { color: "#171412", shadow: "0 1px 7px rgba(255,255,255,0.5)" }
+        : { color: "#fffaf2", shadow: "0 1px 8px rgba(0,0,0,0.42)" };
     }
 
     async function analyzePosterTextColors(imageSource, runConfig) {
@@ -2567,10 +2571,10 @@
       drawImageCover(ctx, img, sampleW, sampleH);
       const data = ctx.getImageData(0, 0, sampleW, sampleH).data;
       const titleTone = textToneForLuminance(sampleLuminance(data, sampleW, {
-        x: sampleW * 0.06,
-        y: sampleH * 0.13,
+        x: sampleW * 0.09,
+        y: sampleH * 0.09,
         width: sampleW * 0.82,
-        height: sampleH * 0.25
+        height: sampleH * 0.24
       }));
       const brandTone = textToneForLuminance(sampleLuminance(data, sampleW, {
         x: sampleW * 0.24,
@@ -2693,12 +2697,12 @@
       });
     }
 
-    function applyCanvasTextStyle(ctx, tone, blur = 18) {
+    function applyCanvasTextStyle(ctx, tone, blur = 8) {
       ctx.fillStyle = tone.color;
-      ctx.shadowColor = tone.color === "#171412" ? "rgba(255,255,255,0.78)" : "rgba(0,0,0,0.48)";
+      ctx.shadowColor = tone.color === "#171412" ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.42)";
       ctx.shadowBlur = blur;
       ctx.shadowOffsetX = 0;
-      ctx.shadowOffsetY = tone.color === "#171412" ? 1 : 2;
+      ctx.shadowOffsetY = 1;
     }
 
     function drawPosterCopyToCanvas(ctx, width, height, colors) {
@@ -2708,42 +2712,40 @@
       ctx.save();
       ctx.textBaseline = "top";
 
-      applyCanvasTextStyle(ctx, colors.brand, width * 0.018);
+      applyCanvasTextStyle(ctx, colors.brand, width * 0.008);
       ctx.textAlign = "center";
-      ctx.font = `500 ${Math.max(24, Math.min(52, width * 0.034))}px ${fontFamily}`;
-      if ("letterSpacing" in ctx) ctx.letterSpacing = `${Math.max(5, width * 0.012)}px`;
+      ctx.font = `600 ${Math.max(22, Math.min(42, width * 0.026))}px ${fontFamily}`;
       ctx.fillText(ellipsizeCanvasText(ctx, copy.brand.toUpperCase(), width * 0.86), width / 2, height * 0.058);
-      if ("letterSpacing" in ctx) ctx.letterSpacing = "0px";
 
-      const centered = layout === "premium" || layout === "editorial";
-      const groupTop = height * (layout === "editorial" ? 0.18 : layout === "premium" ? 0.14 : 0.15);
-      const maxWidth = width * (centered ? 0.78 : 0.8);
-      const left = centered ? width / 2 : width * 0.07;
-      ctx.textAlign = centered ? "center" : "left";
-      applyCanvasTextStyle(ctx, colors.title, width * 0.02);
+      const groupTop = height * (layout === "editorial" ? 0.128 : layout === "premium" ? 0.096 : 0.108);
+      const maxWidth = width * (layout === "editorial" ? 0.76 : layout === "premium" ? 0.78 : 0.82);
+      const left = width / 2;
+      ctx.textAlign = "center";
+      applyCanvasTextStyle(ctx, colors.title, width * 0.01);
 
-      let titleSize = Math.max(48, Math.min(112, width * 0.095));
+      let titleSize = Math.max(44, Math.min(96, width * 0.082));
       let titleLines = [];
-      while (titleSize > 42) {
-        ctx.font = `800 ${titleSize}px ${fontFamily}`;
-        titleLines = wrapCanvasText(ctx, copy.headline, maxWidth, 3);
+      while (titleSize > 38) {
+        ctx.font = `700 ${titleSize}px ${fontFamily}`;
+        titleLines = wrapCanvasText(ctx, copy.headline, maxWidth);
         if (titleLines.length <= 2) break;
         titleSize -= 4;
       }
+      titleLines = wrapCanvasText(ctx, copy.headline, maxWidth, 2);
 
-      const titleLineHeight = titleSize * 1.03;
+      const titleLineHeight = titleSize * 1.04;
       drawCanvasTextLines(ctx, titleLines, left, groupTop, titleLineHeight);
 
-      const subtitleSize = Math.max(26, Math.min(52, width * 0.045));
+      const subtitleSize = Math.max(24, Math.min(42, width * 0.035));
       ctx.font = `500 ${subtitleSize}px ${fontFamily}`;
-      const subtitleY = groupTop + titleLines.length * titleLineHeight + width * 0.02;
+      const subtitleY = groupTop + titleLines.length * titleLineHeight + width * 0.014;
       const subtitleLines = wrapCanvasText(ctx, copy.subtitle, maxWidth, 2);
-      drawCanvasTextLines(ctx, subtitleLines, left, subtitleY, subtitleSize * 1.18);
+      drawCanvasTextLines(ctx, subtitleLines, left, subtitleY, subtitleSize * 1.22);
 
-      applyCanvasTextStyle(ctx, colors.selling, width * 0.018);
+      applyCanvasTextStyle(ctx, colors.selling, width * 0.008);
       ctx.textAlign = "center";
-      const sellingSize = Math.max(24, Math.min(40, width * 0.03));
-      ctx.font = `500 ${sellingSize}px ${fontFamily}`;
+      const sellingSize = Math.max(20, Math.min(32, width * 0.025));
+      ctx.font = `600 ${sellingSize}px ${fontFamily}`;
       ctx.fillText(ellipsizeCanvasText(ctx, copy.sellingPoint, width * 0.86), width / 2, height * 0.94);
       ctx.restore();
     }
