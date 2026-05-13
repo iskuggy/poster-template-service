@@ -1814,7 +1814,8 @@
       lastRun: null,
       lastImageUrl: "",
       lastTextColors: null,
-      generationCount: 0
+      generationCount: 0,
+      isGenerating: false
     };
 
     const ruleText = {
@@ -2019,6 +2020,12 @@
 
     function updateGenerationCount() {
       generationCount.textContent = String(state.generationCount || 0);
+    }
+
+    function setGenerateControlsDisabled(disabled) {
+      document.getElementById("generateImage").disabled = disabled;
+      document.getElementById("generateImageStage").disabled = disabled;
+      if (disabled) retryGenerate.disabled = true;
     }
 
     function applyDesignPreset() {
@@ -2228,6 +2235,9 @@
       if (error && error.name === "AbortError") {
         return "请求等待超过 3 分钟，已自动停止。请点“重试生成”。";
       }
+      if (message.includes("NO_IMAGE_DATA") || message.includes("did not include image data") || message.includes("没有返回图片数据") || message.includes("inlineData")) {
+        return "模型这次没有返回图片。系统已自动重试过，通常是 Gemini 临时空响应、负载波动或安全策略误判。请点“重新生成”，或换 Nano Banana（更快）再试。";
+      }
       if (message.includes("high demand") || message.includes("Spikes in demand")) {
         return "模型当前请求量较高，稍后重试。";
       }
@@ -2244,6 +2254,17 @@
         return "请求没有成功发出或被浏览器拦截。请确认正在用 http://127.0.0.1:4177/ 打开页面，而不是 file:// 本地文件。";
       }
       return message;
+    }
+
+    async function readApiErrorMessage(response, fallback = "") {
+      const contentType = response.headers.get("content-type") || "";
+      if (contentType.includes("application/json")) {
+        const payload = await response.json().catch(() => ({}));
+        const message = payload.error?.message || payload.message || fallback || `HTTP ${response.status}`;
+        const detail = payload.error?.detail || payload.detail || "";
+        return detail ? `${message} ${detail}` : message;
+      }
+      return await response.text() || fallback || `HTTP ${response.status}`;
     }
 
     async function fetchWithTimeout(url, options = {}, timeoutMs = REQUEST_TIMEOUT_MS) {
@@ -2974,7 +2995,7 @@
 
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(data.error?.message || JSON.stringify(data) || `HTTP ${response.status}`);
+        throw new Error(data.error?.message || data.message || JSON.stringify(data) || `HTTP ${response.status}`);
       }
       const text = extractModelText(data);
       if (!text) {
@@ -3006,7 +3027,7 @@
 
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(data.error?.message || JSON.stringify(data) || `HTTP ${response.status}`);
+        throw new Error(data.error?.message || data.message || JSON.stringify(data) || `HTTP ${response.status}`);
       }
 
       const parts = data.candidates?.[0]?.content?.parts || [];
@@ -3043,13 +3064,13 @@
 
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(data.error?.message || JSON.stringify(data) || `HTTP ${response.status}`);
+        throw new Error(data.error?.message || data.message || JSON.stringify(data) || `HTTP ${response.status}`);
       }
       return normalizeImageResponse(data);
     }
 
     async function callLocalProxy(runConfig) {
-      statusDetail.textContent = "真实状态：正在发送到 Worker；若前方有人生成，会自动排队";
+      statusDetail.textContent = "真实状态：正在发送到 Worker；若模型空图或前方有人生成，会自动重试/排队";
       const formData = new FormData();
       formData.append("prompt", runConfig.prompt);
       formData.append("negative_prompt", fields.negative.value.trim());
@@ -3065,14 +3086,11 @@
         body: formData
       });
 
-      const contentType = response.headers.get("content-type") || "";
       if (!response.ok) {
-        const errorText = contentType.includes("application/json")
-          ? JSON.stringify(await response.json())
-          : await response.text();
-        throw new Error(errorText || `HTTP ${response.status}`);
+        throw new Error(await readApiErrorMessage(response));
       }
 
+      const contentType = response.headers.get("content-type") || "";
       if (contentType.startsWith("image/")) {
         return URL.createObjectURL(await response.blob());
       }
@@ -3105,6 +3123,11 @@
     }
 
     async function generateImage(runOverride = null) {
+      if (state.isGenerating) {
+        setStatus("上一张海报还在生成中，请等完成后再继续。", "warning", null, "真实状态：已有请求正在进行");
+        return;
+      }
+
       refreshPrompt();
 
       if (window.location.protocol === "file:") {
@@ -3145,6 +3168,8 @@
       }
 
       state.lastRun = runConfig;
+      state.isGenerating = true;
+      setGenerateControlsDisabled(true);
       resultMeta.textContent = "生成中";
       startProgress();
 
@@ -3162,6 +3187,10 @@
       } catch (error) {
         resultMeta.textContent = "生成失败";
         finishProgress(formatApiError(error), "error");
+        retryGenerate.disabled = !state.lastRun;
+      } finally {
+        state.isGenerating = false;
+        setGenerateControlsDisabled(false);
         retryGenerate.disabled = !state.lastRun;
       }
     }

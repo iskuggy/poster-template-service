@@ -3,6 +3,10 @@ const DEEPSEEK_ENDPOINT = "https://api.deepseek.com/chat/completions";
 
 let generationTail = Promise.resolve();
 
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 function corsHeaders(env) {
   return {
     "Access-Control-Allow-Origin": env.ALLOWED_ORIGIN || "*",
@@ -69,6 +73,72 @@ function normalizeGeminiImage(data) {
   return `data:${mimeType};base64,${inlineData.data}`;
 }
 
+function extractGeminiText(data) {
+  const parts = data.candidates?.[0]?.content?.parts || [];
+  return parts
+    .map(part => part.text || "")
+    .filter(Boolean)
+    .join("\n")
+    .trim();
+}
+
+function geminiFailureSummary(data) {
+  const candidate = data.candidates?.[0] || {};
+  const finishReason = candidate.finishReason || candidate.finish_reason || "";
+  const text = extractGeminiText(data);
+  const safety = candidate.safetyRatings || candidate.safety_ratings || [];
+  const blocked = safety
+    .filter(item => item.blocked || item.probability === "HIGH" || item.probability === "MEDIUM")
+    .map(item => item.category)
+    .filter(Boolean)
+    .join(", ");
+
+  return [finishReason && `finishReason=${finishReason}`, blocked && `safety=${blocked}`, text]
+    .filter(Boolean)
+    .join("；")
+    .slice(0, 500);
+}
+
+function shouldRetryGemini(status, data) {
+  if ([429, 500, 502, 503, 504].includes(status)) return true;
+  const message = [
+    data?.error?.message,
+    data?.message,
+    extractGeminiText(data)
+  ].filter(Boolean).join(" ");
+  return /high demand|temporar|try again|overloaded|rate limit|空|稍后/i.test(message);
+}
+
+async function requestGeminiImage({ prompt, model, file, imageData, env, attempt }) {
+  const retryNote = attempt > 1
+    ? "\n\n重试硬约束：上一次响应没有可用图片或模型临时繁忙。本次必须返回 IMAGE 模态的完整海报底图，不要只返回文字说明，不要解释。"
+    : "";
+
+  const upstream = await fetch(`${GEMINI_ENDPOINT}/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(env.GEMINI_API_KEY)}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      contents: [{
+        parts: [
+          { text: `${prompt}${retryNote}` },
+          {
+            inline_data: {
+              mime_type: file.type || "image/png",
+              data: imageData
+            }
+          }
+        ]
+      }],
+      generationConfig: {
+        responseModalities: ["TEXT", "IMAGE"]
+      }
+    })
+  });
+
+  const data = await upstream.json().catch(() => ({}));
+  return { upstream, data };
+}
+
 async function runQueued(task) {
   const run = generationTail.then(task, task);
   generationTail = run.catch(() => {});
@@ -95,38 +165,56 @@ async function handleGeminiImage(request, env) {
     }
 
     const imageData = arrayBufferToBase64(await file.arrayBuffer());
-    const upstream = await fetch(`${GEMINI_ENDPOINT}/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(env.GEMINI_API_KEY)}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{
-          parts: [
-            { text: prompt },
-            {
-              inline_data: {
-                mime_type: file.type || "image/png",
-                data: imageData
-              }
-            }
-          ]
-        }],
-        generationConfig: {
-          responseModalities: ["TEXT", "IMAGE"]
+    const maxAttempts = Math.max(1, Math.min(4, Number(env.GEMINI_MAX_ATTEMPTS || 3)));
+    let lastData = {};
+    let lastStatus = 502;
+    let lastSummary = "";
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      const { upstream, data } = await requestGeminiImage({ prompt, model, file, imageData, env, attempt });
+      lastData = data;
+      lastStatus = upstream.status;
+
+      if (upstream.ok) {
+        const imageUrl = normalizeGeminiImage(data);
+        if (imageUrl) {
+          return jsonResponse({ imageUrl, attempts: attempt }, 200, env);
         }
-      })
-    });
 
-    const data = await upstream.json().catch(() => ({}));
-    if (!upstream.ok) {
-      return jsonResponse({ error: { message: data.error?.message || JSON.stringify(data) || `HTTP ${upstream.status}` } }, upstream.status, env);
+        lastSummary = geminiFailureSummary(data);
+        if (attempt < maxAttempts) {
+          await sleep(900 * attempt);
+          continue;
+        }
+        break;
+      }
+
+      lastSummary = data.error?.message || JSON.stringify(data) || `HTTP ${upstream.status}`;
+      if (attempt < maxAttempts && shouldRetryGemini(upstream.status, data)) {
+        await sleep(1200 * attempt);
+        continue;
+      }
+
+      return jsonResponse({
+        error: {
+          message: lastSummary,
+          retryable: shouldRetryGemini(upstream.status, data)
+        },
+        attempts: attempt
+      }, upstream.status, env);
     }
 
-    const imageUrl = normalizeGeminiImage(data);
-    if (!imageUrl) {
-      return jsonResponse({ error: { message: "Gemini response did not include image data." } }, 502, env);
-    }
-
-    return jsonResponse({ imageUrl }, 200, env);
+    return jsonResponse({
+      error: {
+        message: `Gemini 连续 ${maxAttempts} 次没有返回图片数据，请稍后点“重新生成”。`,
+        code: "NO_IMAGE_DATA",
+        retryable: true,
+        detail: lastSummary || "No inline image part in Gemini response."
+      },
+      attempts: maxAttempts,
+      upstreamStatus: lastStatus,
+      upstream: env.DEBUG_GEMINI_RESPONSE === "true" ? lastData : undefined
+    }, 502, env);
   });
 }
 
