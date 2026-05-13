@@ -1857,9 +1857,11 @@
       const [ratioW, ratioH] = spec.ratio.split(":").map(Number);
       if (!ratioW || !ratioH) return;
 
-      const safeInsetX = 8;
-      const availableW = Math.max(220, canvasWrap.clientWidth - safeInsetX);
-      const width = Math.floor(availableW);
+      // 用 content area 宽度，而非 clientWidth（后者包含了 padding，导致溢出）
+      const cs = getComputedStyle(canvasWrap);
+      const paddingX = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight);
+      const contentW = Math.max(220, canvasWrap.clientWidth - paddingX);
+      const width = Math.floor(contentW);
       const height = Math.floor(width * (ratioH / ratioW));
 
       resultFrame.style.width = `${width}px`;
