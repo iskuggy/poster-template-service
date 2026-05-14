@@ -312,6 +312,34 @@
       line-height: 1.35;
     }
 
+    .stage-status-main {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      min-width: 0;
+    }
+
+    .stage-status-copy {
+      min-width: 0;
+      text-align: left;
+    }
+
+    .stage-status-actions {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 8px;
+      flex: 0 0 auto;
+    }
+
+    .stage-status-actions .button {
+      min-height: 32px;
+      padding: 0 12px;
+      font-size: 11px;
+      box-shadow: none;
+    }
+
     .stage-status .status-detail {
       margin-top: 4px;
       color: currentColor;
@@ -341,6 +369,10 @@
       background: var(--success);
     }
 
+    .status.stage-status.success .progress-bar {
+      background: linear-gradient(90deg, var(--success), #76B684);
+    }
+
     .status.stage-status.error {
       border-color: rgba(197,70,58,0.22);
       background:
@@ -354,6 +386,10 @@
       background: var(--danger);
     }
 
+    .status.stage-status.error .progress-bar {
+      background: linear-gradient(90deg, var(--danger), #E07A70);
+    }
+
     .status.stage-status.warning {
       border-color: rgba(184,122,43,0.24);
       background:
@@ -365,6 +401,10 @@
 
     .status.stage-status.warning::before {
       background: var(--warning);
+    }
+
+    .status.stage-status.warning .progress-bar {
+      background: linear-gradient(90deg, var(--warning), #D6A456);
     }
 
     .status.stage-status.generating {
@@ -1561,6 +1601,21 @@
         margin: 0 12px 10px;
       }
 
+      .stage-status-main {
+        align-items: stretch;
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      .stage-status-actions {
+        justify-content: stretch;
+        width: 100%;
+      }
+
+      .stage-status-actions .button {
+        flex: 1;
+      }
+
       .poster-frame {
         width: min(96vw, 620px);
         height: auto;
@@ -1744,8 +1799,16 @@
         </div>
 
         <div class="status stage-status" id="statusText" aria-live="polite">
-          <div id="statusMessage">上传产品图后，点击"生成海报"。</div>
-          <div class="status-detail" id="statusDetail">真实状态会在这里显示。</div>
+          <div class="stage-status-main">
+            <div class="stage-status-copy">
+              <div id="statusMessage">上传产品图后，点击"生成海报"。</div>
+              <div class="status-detail" id="statusDetail">真实状态会在这里显示。</div>
+            </div>
+            <div class="stage-status-actions">
+              <button class="button ghost" type="button" id="retryGenerate" disabled>重新生成</button>
+              <a class="button secondary download-link" id="downloadImage" download="juxia-poster.png">下载 PNG</a>
+            </div>
+          </div>
           <div class="progress" aria-hidden="true">
             <div class="progress-bar" id="progressBar"></div>
           </div>
@@ -1854,10 +1917,6 @@
             </div>
             <div style="display:grid;gap:10px;">
               <button class="button primary" type="button" id="generateImageStage" style="width:100%;">生成海报</button>
-              <div style="display:flex;gap:10px;">
-                <button class="button ghost" type="button" id="retryGenerate" disabled style="flex:1;">重新生成</button>
-                <a class="button secondary download-link" id="downloadImage" download="juxia-poster.png" style="flex:1;text-align:center;">下载 PNG</a>
-              </div>
             </div>
           </div>
         </div>
