@@ -1078,6 +1078,23 @@
       line-height: 1.25;
     }
 
+    .stats-sync {
+      margin-top: 9px;
+      padding-top: 9px;
+      border-top: 1px solid rgba(224,220,212,0.62);
+      color: var(--text-tertiary);
+      font-size: 10px;
+      line-height: 1.35;
+    }
+
+    .stats-sync.synced {
+      color: var(--success);
+    }
+
+    .stats-sync.local {
+      color: var(--warning);
+    }
+
     /* ═══════════════════════════════════════════════
        DETAILS (Advanced Style / Prompt)
        ═══════════════════════════════════════════════ */
@@ -1752,7 +1769,7 @@
             </div>
             <div class="generation-stats" aria-live="polite">
               <div class="generation-stats-head">
-                <span>累计成功出图</span>
+                <span id="statsScope">读取统计中</span>
                 <strong><span id="generationTotalCount">0</span> 张</strong>
               </div>
               <div class="model-count-grid">
@@ -1767,6 +1784,7 @@
                   <span class="model-count-note">更快出图</span>
                 </div>
               </div>
+              <div class="stats-sync" id="generationStatsStatus">等待 Worker 返回真实统计</div>
             </div>
             <div style="display:grid;gap:10px;">
               <button class="button primary" type="button" id="generateImageStage" style="width:100%;">生成海报</button>
@@ -1944,6 +1962,9 @@
       lastImageUrl: "",
       lastTextColors: null,
       generationCounts: { ...DEFAULT_GENERATION_COUNTS },
+      generationStatsSource: "pending",
+      generationStatsUpdatedAt: "",
+      pendingGenerationStats: null,
       isGenerating: false
     };
 
@@ -2095,6 +2116,8 @@
     const downloadImage = document.getElementById("downloadImage");
     const settingsModal = document.getElementById("settingsModal");
     const generatePresetButton = document.getElementById("generatePreset");
+    const statsScope = document.getElementById("statsScope");
+    const generationStatsStatus = document.getElementById("generationStatsStatus");
     const generationTotalCount = document.getElementById("generationTotalCount");
     const generationCountPro = document.getElementById("generationCountPro");
     const generationCountFast = document.getElementById("generationCountFast");
@@ -2171,11 +2194,54 @@
       state.generationCounts = normalized;
     }
 
+    function formatStatsTime(value) {
+      if (!value) return "";
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return "";
+      return date.toLocaleString("zh-CN", {
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit"
+      });
+    }
+
+    function setGenerationStatsStatus(message, mode = "") {
+      generationStatsStatus.textContent = message;
+      generationStatsStatus.className = `stats-sync${mode ? ` ${mode}` : ""}`;
+    }
+
+    function applyGenerationStats(stats, source = "worker-kv") {
+      if (!stats || typeof stats !== "object") return false;
+      state.generationCounts = normalizeGenerationCounts(stats.counts || {});
+      state.generationStatsSource = stats.source || source;
+      state.generationStatsUpdatedAt = stats.updatedAt || "";
+      updateGenerationCount();
+      persistSettings();
+      return true;
+    }
+
     function updateGenerationCount() {
       state.generationCounts = normalizeGenerationCounts(state.generationCounts);
       generationTotalCount.textContent = String(getGenerationTotal());
       generationCountPro.textContent = String(state.generationCounts[IMAGE_MODEL_IDS.pro] || 0);
       generationCountFast.textContent = String(state.generationCounts[IMAGE_MODEL_IDS.fast] || 0);
+
+      const source = state.generationStatsSource;
+      if (source === "worker-kv") {
+        statsScope.textContent = "团队真实统计";
+        const time = formatStatsTime(state.generationStatsUpdatedAt);
+        setGenerationStatsStatus(time ? `已从 Worker 同步，最后成功：${time}` : "已从 Worker 同步真实成功出图数", "synced");
+      } else if (source === "local") {
+        statsScope.textContent = "本机调试统计";
+        setGenerationStatsStatus("仅统计这个浏览器，不代表团队真实累计", "local");
+      } else if (source === "unavailable") {
+        statsScope.textContent = "统计未连接";
+        setGenerationStatsStatus("Worker 统计存储未连接，暂时不展示团队真实数据", "local");
+      } else {
+        statsScope.textContent = "读取统计中";
+        setGenerationStatsStatus("等待 Worker 返回真实统计");
+      }
 
       const activeModel = fields.modalModel?.value || state.apiConfig.model;
       modelCountCards.forEach(card => {
@@ -2332,7 +2398,15 @@
         }
 
         if (saved.generationCounts && typeof saved.generationCounts === "object") {
-          state.generationCounts = normalizeGenerationCounts(saved.generationCounts);
+          if (saved.generationStatsSource === "worker-kv") {
+            state.generationCounts = normalizeGenerationCounts({});
+            state.generationStatsSource = "pending";
+            state.generationStatsUpdatedAt = "";
+          } else {
+            state.generationCounts = normalizeGenerationCounts(saved.generationCounts);
+            state.generationStatsSource = saved.generationStatsSource || "local";
+            state.generationStatsUpdatedAt = saved.generationStatsUpdatedAt || "";
+          }
         } else if (Number.isFinite(Number(saved.generationCount))) {
           const legacyModel = Object.prototype.hasOwnProperty.call(DEFAULT_GENERATION_COUNTS, state.apiConfig.model)
             ? state.apiConfig.model
@@ -2340,6 +2414,7 @@
           state.generationCounts = normalizeGenerationCounts({
             [legacyModel]: Math.max(0, Number(saved.generationCount))
           });
+          state.generationStatsSource = "local";
         }
       } catch (error) {
         console.warn("Failed to load saved settings", error);
@@ -2357,6 +2432,8 @@
         geminiOptimizerConfig: state.geminiOptimizerConfig,
         optimizerProvider: state.optimizerProvider,
         generationCounts: normalizeGenerationCounts(state.generationCounts),
+        generationStatsSource: state.generationStatsSource,
+        generationStatsUpdatedAt: state.generationStatsUpdatedAt,
         generationCount: getGenerationTotal()
       }));
     }
@@ -2480,6 +2557,54 @@
       return resolveWorkerEndpoint("/api/auth-check");
     }
 
+    function getStatsEndpoint() {
+      return resolveWorkerEndpoint("/api/generation-stats");
+    }
+
+    async function fetchGenerationStats({ silent = false } = {}) {
+      if (state.apiConfig.service !== "local-proxy") {
+        state.generationStatsSource = "local";
+        updateGenerationCount();
+        return false;
+      }
+
+      if (!state.apiConfig.accessUsername || !state.apiConfig.accessPassword) {
+        state.generationStatsSource = "pending";
+        if (!silent) updateGenerationCount();
+        return false;
+      }
+
+      try {
+        if (!silent) {
+          state.generationStatsSource = "pending";
+          updateGenerationCount();
+        }
+        const response = await fetchWithTimeout(getStatsEndpoint(), {
+          method: "GET",
+          headers: getProxyAuthHeaders()
+        }, 15000);
+
+        if (!response.ok) {
+          throw new Error(await readApiErrorMessage(response, `HTTP ${response.status}`));
+        }
+
+        const payload = await response.json().catch(() => ({}));
+        if (!payload.stats) {
+          throw new Error("Worker 没有返回统计数据。");
+        }
+
+        applyGenerationStats(payload.stats, "worker-kv");
+        return true;
+      } catch (error) {
+        state.generationStatsSource = "unavailable";
+        updateGenerationCount();
+        if (!silent) {
+          setGenerationStatsStatus(error.message || "无法读取 Worker 真实统计", "local");
+        }
+        return false;
+      }
+    }
+
     function setAuthError(message) {
       authError.textContent = message || "";
     }
@@ -2489,6 +2614,7 @@
       setAuthError("");
       hydrateSettingsFields();
       persistSettings();
+      fetchGenerationStats({ silent: true });
     }
 
     async function verifyAccess(username, password) {
@@ -3271,6 +3397,7 @@
       formData.append("model", runConfig.model);
       formData.append("service", runConfig.service);
       formData.append("reference_image", state.referenceFile);
+      state.pendingGenerationStats = null;
 
       const response = await fetchWithTimeout(runConfig.proxyEndpoint, {
         method: "POST",
@@ -3286,7 +3413,9 @@
       if (contentType.startsWith("image/")) {
         return URL.createObjectURL(await response.blob());
       }
-      return normalizeImageResponse(await response.json());
+      const payload = await response.json();
+      state.pendingGenerationStats = payload.stats || null;
+      return normalizeImageResponse(payload);
     }
 
     async function renderResult(imageSource, runConfig) {
@@ -3309,9 +3438,17 @@
       renderPosterTextLayer(state.lastTextColors);
       canvasWrap.scrollTop = 0;
       resultMeta.textContent = `${runConfig.size.replace("x", " × ")} / ${getOutputSpec(runConfig.size).ratio} / 已生成，文字已前端排版`;
-      incrementGenerationCount(runConfig.model);
-      updateGenerationCount();
-      persistSettings();
+      if (runConfig.service === "local-proxy") {
+        if (!applyGenerationStats(state.pendingGenerationStats, "worker-kv")) {
+          await fetchGenerationStats({ silent: true });
+        }
+      } else {
+        incrementGenerationCount(runConfig.model);
+        state.generationStatsSource = "local";
+        state.generationStatsUpdatedAt = new Date().toISOString();
+        updateGenerationCount();
+        persistSettings();
+      }
     }
 
     async function generateImage(runOverride = null) {
@@ -3458,6 +3595,7 @@
       state.geminiOptimizerConfig.model = fields.geminiOptimizerModel.value.trim() || "gemini-3.1-flash-lite";
       persistSettings();
       updateGenerationCount();
+      fetchGenerationStats({ silent: true });
       refreshPrompt();
       closeSettings();
       setStatus("生成设置已保存到本地。", "success", 0, "真实状态：请求尚未发出");

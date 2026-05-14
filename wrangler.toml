@@ -6,3 +6,7 @@ preview_urls = false
 
 [vars]
 ALLOWED_ORIGIN = "https://iskuggy.github.io"
+
+[[kv_namespaces]]
+binding = "JUXIA_STATS"
+id = "0591ff5606b9420da9a733fdabb5b066"

@@ -1,5 +1,10 @@
 const GEMINI_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models";
 const DEEPSEEK_ENDPOINT = "https://api.deepseek.com/chat/completions";
+const STATS_KEY = "generation-stats:v1";
+const IMAGE_MODEL_IDS = {
+  pro: "gemini-3-pro-image-preview",
+  fast: "gemini-2.5-flash-image"
+};
 
 let generationTail = Promise.resolve();
 
@@ -29,6 +34,83 @@ function jsonResponse(payload, status = 200, env = {}) {
 
 function unauthorized(env) {
   return jsonResponse({ error: { message: "Unauthorized." } }, 401, env);
+}
+
+function defaultGenerationStats() {
+  return {
+    counts: {
+      [IMAGE_MODEL_IDS.pro]: 0,
+      [IMAGE_MODEL_IDS.fast]: 0
+    },
+    total: 0,
+    updatedAt: null
+  };
+}
+
+function normalizeGenerationStats(raw = {}) {
+  const defaults = defaultGenerationStats();
+  const counts = Object.keys(defaults.counts).reduce((nextCounts, modelId) => {
+    const value = Number(raw.counts?.[modelId]);
+    nextCounts[modelId] = Number.isFinite(value) ? Math.max(0, value) : 0;
+    return nextCounts;
+  }, { ...defaults.counts });
+
+  return {
+    counts,
+    total: Object.values(counts).reduce((total, value) => total + value, 0),
+    updatedAt: raw.updatedAt || null
+  };
+}
+
+function publicGenerationStats(stats, source = "worker-kv") {
+  const normalized = normalizeGenerationStats(stats);
+  return {
+    source,
+    counts: normalized.counts,
+    total: normalized.total,
+    updatedAt: normalized.updatedAt
+  };
+}
+
+async function readGenerationStats(env) {
+  if (!env.JUXIA_STATS) return null;
+  const stored = await env.JUXIA_STATS.get(STATS_KEY, "json").catch(() => null);
+  return normalizeGenerationStats(stored || {});
+}
+
+async function writeGenerationStats(env, stats) {
+  if (!env.JUXIA_STATS) return null;
+  const normalized = normalizeGenerationStats(stats);
+  await env.JUXIA_STATS.put(STATS_KEY, JSON.stringify(normalized));
+  return normalized;
+}
+
+async function incrementGenerationStats(env, model) {
+  if (!env.JUXIA_STATS) return null;
+
+  const stats = await readGenerationStats(env) || defaultGenerationStats();
+  const modelId = Object.prototype.hasOwnProperty.call(stats.counts, model)
+    ? model
+    : IMAGE_MODEL_IDS.pro;
+
+  stats.counts[modelId] += 1;
+  stats.updatedAt = new Date().toISOString();
+  return writeGenerationStats(env, stats);
+}
+
+async function handleGenerationStats(env) {
+  if (!env.JUXIA_STATS) {
+    return jsonResponse({
+      ok: false,
+      error: { message: "JUXIA_STATS KV binding is not configured." }
+    }, 503, env);
+  }
+
+  const stats = await readGenerationStats(env) || defaultGenerationStats();
+  return jsonResponse({
+    ok: true,
+    stats: publicGenerationStats(stats)
+  }, 200, env);
 }
 
 function decodeBasicAuth(request) {
@@ -178,7 +260,12 @@ async function handleGeminiImage(request, env) {
       if (upstream.ok) {
         const imageUrl = normalizeGeminiImage(data);
         if (imageUrl) {
-          return jsonResponse({ imageUrl, attempts: attempt }, 200, env);
+          const stats = await incrementGenerationStats(env, model);
+          return jsonResponse({
+            imageUrl,
+            attempts: attempt,
+            stats: stats ? publicGenerationStats(stats) : null
+          }, 200, env);
         }
 
         lastSummary = geminiFailureSummary(data);
@@ -273,6 +360,10 @@ export default {
 
     if (url.pathname === "/api/auth-check" && request.method === "GET") {
       return jsonResponse({ ok: true }, 200, env);
+    }
+
+    if (url.pathname === "/api/generation-stats" && request.method === "GET") {
+      return handleGenerationStats(env);
     }
 
     if (url.pathname === "/api/gemini-image" && request.method === "POST") {
