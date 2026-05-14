@@ -248,7 +248,7 @@
       min-width: 0;
       min-height: 0;
       display: grid;
-      grid-template-rows: auto minmax(0, 1fr);
+      grid-template-rows: auto auto minmax(0, 1fr);
       overflow: hidden;
       background:
         radial-gradient(ellipse at 50% 0%, rgba(192,122,69,0.06), transparent 50%),
@@ -275,6 +275,109 @@
       color: var(--text-tertiary);
       font-size: 11px;
       font-weight: 500;
+    }
+
+    .stage-status {
+      position: relative;
+      margin: 0 22px 10px;
+      min-height: 54px;
+      padding: 12px 14px 11px 16px;
+      border-radius: var(--radius-lg);
+      border: 1px solid rgba(224,220,212,0.82);
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.72), rgba(251,250,247,0.86)),
+        var(--bg-card);
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,0.72),
+        0 8px 24px rgba(28,25,23,0.06);
+      color: var(--text-secondary);
+      overflow: hidden;
+    }
+
+    .stage-status::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 12px;
+      bottom: 12px;
+      width: 3px;
+      border-radius: 0 999px 999px 0;
+      background: var(--border);
+    }
+
+    .stage-status #statusMessage {
+      color: var(--stage-status-message, var(--text-primary));
+      font-size: 12px;
+      font-weight: 650;
+      line-height: 1.35;
+    }
+
+    .stage-status .status-detail {
+      margin-top: 4px;
+      color: currentColor;
+      font-size: 11px;
+      line-height: 1.45;
+      opacity: 0.72;
+    }
+
+    .stage-status .progress {
+      height: 5px;
+      margin-top: 10px;
+      border-radius: 999px;
+      background: rgba(224,220,212,0.72);
+      overflow: hidden;
+    }
+
+    .status.stage-status.success {
+      border-color: rgba(74,140,92,0.22);
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.76), rgba(237,247,240,0.78)),
+        var(--bg-card);
+      color: var(--success);
+      --stage-status-message: var(--success);
+    }
+
+    .status.stage-status.success::before {
+      background: var(--success);
+    }
+
+    .status.stage-status.error {
+      border-color: rgba(197,70,58,0.22);
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.76), rgba(253,241,239,0.82)),
+        var(--bg-card);
+      color: var(--danger);
+      --stage-status-message: var(--danger);
+    }
+
+    .status.stage-status.error::before {
+      background: var(--danger);
+    }
+
+    .status.stage-status.warning {
+      border-color: rgba(184,122,43,0.24);
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.76), rgba(253,246,237,0.84)),
+        var(--bg-card);
+      color: var(--warning);
+      --stage-status-message: var(--warning);
+    }
+
+    .status.stage-status.warning::before {
+      background: var(--warning);
+    }
+
+    .status.stage-status.generating {
+      border-color: rgba(192,122,69,0.24);
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.78), rgba(251,243,235,0.9)),
+        var(--bg-card);
+      color: var(--accent-strong);
+      --stage-status-message: var(--accent-strong);
+    }
+
+    .status.stage-status.generating::before {
+      background: linear-gradient(180deg, var(--accent), #D4945A);
     }
 
     .canvas-wrap {
@@ -843,39 +946,6 @@
       font-size: 12px;
       line-height: 1.5;
     }
-
-    .topbar-status {
-      width: min(300px, 26vw);
-      min-width: 200px;
-      min-height: auto;
-      padding: 0;
-      text-align: left;
-      font-size: 11px;
-      line-height: 1.25;
-      box-shadow: none;
-      border: 0;
-      border-radius: 0;
-      background: transparent;
-      color: var(--text-tertiary);
-      overflow: hidden;
-    }
-
-    .topbar-status .status-detail {
-      display: none;
-    }
-
-    .topbar-status .progress {
-      height: 2px;
-      margin-top: 5px;
-      background: var(--border);
-      border-radius: 999px;
-      overflow: hidden;
-    }
-
-    .topbar-status.success { color: var(--success); border: 0; background: transparent; }
-    .topbar-status.error { color: var(--danger); border: 0; background: transparent; }
-    .topbar-status.warning { color: var(--warning); border: 0; background: transparent; }
-    .topbar-status.generating { color: var(--accent-strong); border: 0; background: transparent; }
 
     .status.success {
       border-color: #B8DFC4;
@@ -1463,13 +1533,6 @@
         flex-wrap: wrap;
       }
 
-      .topbar-status {
-        width: 100%;
-        min-width: 0;
-        order: 3;
-        padding-top: 2px;
-      }
-
       .workspace {
         display: block;
         height: auto;
@@ -1492,6 +1555,10 @@
       .canvas-wrap {
         min-height: 72vh;
         padding: 10px 6px 16px;
+      }
+
+      .stage-status {
+        margin: 0 12px 10px;
       }
 
       .poster-frame {
@@ -1557,13 +1624,6 @@
       </div>
 
       <div class="topbar-actions">
-        <div class="status topbar-status" id="statusText" aria-live="polite">
-          <div id="statusMessage">上传产品图后，点击"生成海报"。</div>
-          <div class="status-detail" id="statusDetail">真实状态会在这里显示。</div>
-          <div class="progress" aria-hidden="true">
-            <div class="progress-bar" id="progressBar"></div>
-          </div>
-        </div>
         <button class="button ghost" type="button" id="openSettings">
           <svg class="icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 15.5A3.5 3.5 0 1 0 12 8a3.5 3.5 0 0 0 0 7.5Z" stroke="currentColor" stroke-width="1.8"/><path d="M19.4 13.5a7.7 7.7 0 0 0 .05-1.5l2-1.55-2-3.46-2.42.98a7.43 7.43 0 0 0-1.3-.76L15.35 4h-4l-.36 3.21c-.47.2-.91.46-1.31.76l-2.43-.98-2 3.46L7.27 12a7.7 7.7 0 0 0 .05 1.5l-2.07 1.6 2 3.46 2.52-1.02c.37.27.77.5 1.2.68l.38 3.28h4l.38-3.28c.43-.18.83-.41 1.2-.68l2.52 1.02 2-3.46-2.05-1.6Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
           设置
@@ -1681,6 +1741,14 @@
             <div class="stage-meta" id="resultMeta">3:4 / 等待生成</div>
           </div>
           <div class="stage-meta" id="canvasSize">1080 × 1440</div>
+        </div>
+
+        <div class="status stage-status" id="statusText" aria-live="polite">
+          <div id="statusMessage">上传产品图后，点击"生成海报"。</div>
+          <div class="status-detail" id="statusDetail">真实状态会在这里显示。</div>
+          <div class="progress" aria-hidden="true">
+            <div class="progress-bar" id="progressBar"></div>
+          </div>
         </div>
 
         <div class="canvas-wrap" id="canvasWrap">
@@ -2450,7 +2518,7 @@
     function setStatus(message, type = "", progress = null, detail = "") {
       statusMessage.textContent = message;
       statusDetail.textContent = detail;
-      statusText.className = `status topbar-status${type ? ` ${type}` : ""}`;
+      statusText.className = `status stage-status${type ? ` ${type}` : ""}`;
       if (typeof progress === "number") {
         progressBar.style.width = `${Math.max(0, Math.min(100, progress))}%`;
       }
