@@ -362,10 +362,28 @@
       font-family: var(--font-ui);
     }
 
+    .poster-text-layer::before {
+      content: "";
+      position: absolute;
+      z-index: 0;
+      inset: 0 0 auto;
+      height: 36%;
+      background:
+        linear-gradient(
+          180deg,
+          var(--poster-title-veil, rgba(250,248,242,0.42)) 0%,
+          color-mix(in srgb, var(--poster-title-veil, rgba(250,248,242,0.42)) 74%, transparent) 62%,
+          transparent 100%
+        );
+      backdrop-filter: blur(1.5px);
+      -webkit-backdrop-filter: blur(1.5px);
+    }
+
     .poster-brand-copy,
     .poster-title-group,
     .poster-selling-copy {
       position: absolute;
+      z-index: 1;
       max-width: 86%;
       overflow-wrap: break-word;
     }
@@ -1820,8 +1838,8 @@
 
     const ruleText = {
       completeProduct: "完整出镜：产品必须完整可见，不能被画幅、文字、前景物、边缘或阴影遮挡，底部和边角保留清晰安全距离。",
-      productTruth: "产品真实：严格参考上传图的外观、比例、材质、颜色、结构和关键细节，不为了氛围改造产品。",
-      readableText: "文字前端叠加：AI 不负责生成海报文字，只负责预留干净可读的排版区域；品牌、标题、副标题、卖点由网页固定渲染。",
+      productTruth: "产品真实：严格参考上传图的外观、比例、材质、颜色、结构和关键细节；产品表面原有小标识可以保留，但不能被放大或复制到背景里。",
+      readableText: "文字前端叠加：AI 不负责生成海报文字，只负责生成无字底图和干净排版区域；品牌、标题、副标题、卖点由网页固定渲染。",
       cleanBackground: "背景克制：场景只负责提升产品气质，虚化且低干扰；人物、道具、环境不能抢占主体。",
       premiumColor: "低饱和色彩：整体明亮、干净、低饱和，有自然冷暖关系；避免荧光色、脏灰、过度 HDR 和廉价滤镜。",
       commercialCrop: "电商构图：严格遵守当前选择的发布比例，产品主体清晰，信息层级明确，顶部品牌、中部标题、底部卖点各自拥有稳定留白。"
@@ -2070,10 +2088,10 @@
 
       return [
         "请基于上传参考图片中的产品，创作一张可直接用于小红书封面的商业摄影海报底图。优先级从高到低：产品真实 > 场景蓝图 > 构图安全区 > 摄影质感 > 氛围细节。",
-        "重要硬约束：这一步只生成无字底图，最终品牌、标题、副标题和卖点会由网页前端单独叠加。模型不得生成任何海报文案、标题、标语、字幕、促销文字、英文短句、装饰字母或水印。参考产品自身已有铭牌和 logo 可以保持真实，但不要额外放大、改写或新增文字。",
+        "重要硬约束：这一步只生成无字底图，最终品牌、标题、副标题和卖点会由网页前端单独叠加。模型不得生成任何海报文案、标题、标语、字幕、促销文字、英文短句、装饰字母、伪文字、手写字、印刷字或水印。参考产品自身已有的小铭牌、小 logo 可以保持在产品表面原位置，但不要额外放大、改写、复制或扩展成背景文字。",
         `输出规格硬约束：${outputSpec.prompt}`,
         "成片硬约束：输出必须是最终海报画面本身，画面需要铺满整个画布；四个角必须是直角方形画布；禁止生成任何额外外边框、灰色边框、黑色边框、白色留边、卡片底板、圆角画框、相框、展示样机或截图背景。Full-bleed rectangular poster only, no border, no rounded corners, no black matte, no mockup frame.",
-        "单张照片硬约束：只能生成一张连续真实摄影画面，一个机位，一个透视系统，一个主产品主体；禁止拼贴、分屏、多宫格、多机位、多张照片叠加、爆炸图、剖面图、产品重复出现、漂浮道具或不合物理的组合。",
+        "单张照片硬约束：只能生成一张连续真实摄影画面，一个机位，一个透视系统，一个主产品主体；禁止拼贴、分屏、多宫格、多机位、多张照片叠加、爆炸图、剖面图、产品重复出现、漂浮道具、不合物理的组合，以及任何非产品表面的文字排版元素。",
         "",
         "一、模型适配策略：",
         ...modelStrategy.map(item => `- ${item}`),
@@ -2098,11 +2116,12 @@
         "- 产品必须完整出镜，四周尤其底部要有明确安全边距；不要让产品贴住画面底边，不要让产品任何部分被裁切、遮挡或被画幅边缘压住。",
         "- 背景需要服务产品气质，不要喧宾夺主；人物如出现，只能作为远景虚化叙事元素。",
         "- 画面内不要出现任何真实可读的广告牌、路牌、包装文字、屏幕文字或额外品牌标识；避免模型误写字。",
+        "- 参考图里若有大字、海报字、产品宣传语或裁切出来的局部文字，只能当作产品外观参考，不要把这些文字复刻到标题区、背景、墙面、天空或画面上方。",
         "",
         "五、前端文字层预留区：",
         "- 排版风格为现代科技品牌广告式极简文字系统：居中、少字、大留白、强层级，不需要模型生成任何文字或图形装饰。",
         "- 顶部 5%-9% 预留品牌区，背景保持干净、低干扰，但不要生成任何品牌文字。",
-        "- 中上部 10%-34% 预留居中标题区，背景要有足够明暗对比和留白，不能有复杂纹理、人物脸部、车体高亮边缘或产品关键结构穿过。",
+        "- 中上部 10%-34% 预留居中标题区，背景要有足够明暗对比和留白，不能有复杂纹理、人物脸部、车体高亮边缘、产品关键结构、任何真实字母、伪字母、数字、笔画或 logo 穿过。",
         "- 底部 4%-10% 预留卖点区，背景保持平稳，不要放重要产品结构；卖点文字会由前端覆盖在这里。",
         "- 不要把这些预留区做成卡片、色块或边框，只需要自然、干净、可读的画面空间。",
         "",
@@ -2113,7 +2132,8 @@
         "",
         "七、负面约束：",
         `- ${fields.negative.value.trim()}`,
-        "- 不要生成海报文字、标题、字幕、品牌字样、slogan、caption、typography、watermark、英文短句或任何额外文字。",
+        "- 不要生成海报文字、标题、字幕、品牌字样、slogan、caption、typography、watermark、英文短句、中文短句、数字、伪文字、乱码字、巨大 logo 或任何额外文字。",
+        "- 不要把参考图里的 FISHING、LIMITLESS、JUXIA、品牌字母、产品小标识或任何现有文字扩展成背景文案、标题文案或装饰图形。",
         "- 不要把产品改成新品类，不要把蓝色/白色/黑色等参考颜色随意换色，不要添加参考图中不存在的复杂结构。"
       ].join("\n");
     }
@@ -2576,8 +2596,8 @@
     function textToneForLuminance(luma) {
       const dark = luma > 148;
       return dark
-        ? { color: "#171412", shadow: "0 1px 7px rgba(255,255,255,0.5)" }
-        : { color: "#fffaf2", shadow: "0 1px 8px rgba(0,0,0,0.42)" };
+        ? { color: "#171412", shadow: "0 1px 7px rgba(255,255,255,0.5)", veil: "rgba(250,248,242,0.46)" }
+        : { color: "#fffaf2", shadow: "0 1px 8px rgba(0,0,0,0.42)", veil: "rgba(10,12,12,0.34)" };
     }
 
     async function analyzePosterTextColors(imageSource, runConfig) {
@@ -2618,6 +2638,7 @@
       resultFrame.style.setProperty("--poster-brand-shadow", colors.brand.shadow);
       resultFrame.style.setProperty("--poster-title-color", colors.title.color);
       resultFrame.style.setProperty("--poster-title-shadow", colors.title.shadow);
+      resultFrame.style.setProperty("--poster-title-veil", colors.title.veil);
       resultFrame.style.setProperty("--poster-selling-color", colors.selling.color);
       resultFrame.style.setProperty("--poster-selling-shadow", colors.selling.shadow);
     }
@@ -2726,12 +2747,31 @@
       ctx.shadowOffsetY = 1;
     }
 
+    function drawCanvasTextVeil(ctx, width, height, colors) {
+      const isDarkText = colors.title.color === "#171412";
+      const gradient = ctx.createLinearGradient(0, 0, 0, height * 0.36);
+      if (isDarkText) {
+        gradient.addColorStop(0, "rgba(250,248,242,0.46)");
+        gradient.addColorStop(0.62, "rgba(250,248,242,0.26)");
+      } else {
+        gradient.addColorStop(0, "rgba(10,12,12,0.34)");
+        gradient.addColorStop(0.62, "rgba(10,12,12,0.18)");
+      }
+      gradient.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.save();
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, width, height * 0.36);
+      ctx.restore();
+    }
+
     function drawPosterCopyToCanvas(ctx, width, height, colors) {
       const copy = getPosterCopy();
       const layout = fields.designMode.value || "cinematic";
       const fontFamily = getPosterFontFamily();
       ctx.save();
       ctx.textBaseline = "top";
+
+      drawCanvasTextVeil(ctx, width, height, colors);
 
       applyCanvasTextStyle(ctx, colors.brand, width * 0.008);
       ctx.textAlign = "center";
