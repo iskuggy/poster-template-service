@@ -968,27 +968,114 @@
       text-underline-offset: 2px;
     }
 
-    /* ── Generation Counter ── */
-    .generation-counter {
+    /* ── Generation Stats ── */
+    .generation-stats {
       margin-top: 12px;
-      padding: 12px 14px;
-      border-radius: var(--radius-md);
-      background: var(--bg-card);
+      padding: 13px;
+      border-radius: var(--radius-lg);
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.78), rgba(251,250,247,0.88)),
+        var(--bg-card);
       border: 1px solid var(--border-light);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.72);
+    }
+
+    .generation-stats-head {
       display: flex;
       align-items: baseline;
       justify-content: space-between;
       gap: 10px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid rgba(224,220,212,0.72);
       color: var(--text-tertiary);
       font-size: 11px;
       font-weight: 500;
     }
 
-    .generation-counter strong {
+    .generation-stats-head strong {
       color: var(--accent-strong);
-      font-size: 20px;
+      font-size: 22px;
       line-height: 1;
+      font-weight: 800;
+    }
+
+    .model-count-grid {
+      margin-top: 10px;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .model-count {
+      position: relative;
+      overflow: hidden;
+      min-width: 0;
+      padding: 10px;
+      border-radius: var(--radius-md);
+      border: 1px solid rgba(224,220,212,0.82);
+      background: rgba(255,255,255,0.58);
+      transition: border-color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
+    }
+
+    .model-count::before {
+      content: "";
+      position: absolute;
+      inset: 0 0 auto;
+      height: 2px;
+      background: transparent;
+      transition: background 0.18s ease;
+    }
+
+    .model-count.is-active {
+      border-color: rgba(192,122,69,0.38);
+      background: rgba(251,243,235,0.62);
+      box-shadow: 0 6px 16px rgba(192,122,69,0.08);
+    }
+
+    .model-count.is-active::before {
+      background: linear-gradient(90deg, var(--accent), #D4945A);
+    }
+
+    .model-count-label,
+    .model-count-note {
+      display: block;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .model-count-label {
+      color: var(--text-secondary);
+      font-size: 10px;
       font-weight: 700;
+      line-height: 1.2;
+    }
+
+    .model-count-value {
+      display: flex;
+      align-items: baseline;
+      gap: 4px;
+      margin-top: 7px;
+      color: var(--text-primary);
+    }
+
+    .model-count-value strong {
+      font-size: 23px;
+      line-height: 1;
+      font-weight: 800;
+    }
+
+    .model-count-value span {
+      color: var(--text-tertiary);
+      font-size: 10px;
+      font-weight: 600;
+    }
+
+    .model-count-note {
+      margin-top: 4px;
+      color: var(--text-tertiary);
+      font-size: 10px;
+      line-height: 1.25;
     }
 
     /* ═══════════════════════════════════════════════
@@ -1663,9 +1750,23 @@
                 <option value="gemini-2.5-flash-image">Nano Banana（更快）</option>
               </select>
             </div>
-            <div class="generation-counter" aria-live="polite">
-              <span>累计成功出图</span>
-              <strong><span id="generationCount">0</span> 张</strong>
+            <div class="generation-stats" aria-live="polite">
+              <div class="generation-stats-head">
+                <span>累计成功出图</span>
+                <strong><span id="generationTotalCount">0</span> 张</strong>
+              </div>
+              <div class="model-count-grid">
+                <div class="model-count" data-model-count="gemini-3-pro-image-preview">
+                  <span class="model-count-label">Nano Banana Pro</span>
+                  <div class="model-count-value"><strong id="generationCountPro">0</strong><span>张</span></div>
+                  <span class="model-count-note">最强质感</span>
+                </div>
+                <div class="model-count" data-model-count="gemini-2.5-flash-image">
+                  <span class="model-count-label">Nano Banana</span>
+                  <div class="model-count-value"><strong id="generationCountFast">0</strong><span>张</span></div>
+                  <span class="model-count-note">更快出图</span>
+                </div>
+              </div>
             </div>
             <div style="display:grid;gap:10px;">
               <button class="button primary" type="button" id="generateImageStage" style="width:100%;">生成海报</button>
@@ -1807,6 +1908,16 @@
       geminiOptimizerModel: document.getElementById("geminiOptimizerModel")
     };
 
+    const IMAGE_MODEL_IDS = {
+      pro: "gemini-3-pro-image-preview",
+      fast: "gemini-2.5-flash-image"
+    };
+
+    const DEFAULT_GENERATION_COUNTS = {
+      [IMAGE_MODEL_IDS.pro]: 0,
+      [IMAGE_MODEL_IDS.fast]: 0
+    };
+
     const state = {
       referenceFile: null,
       selectedRules: new Set(["completeProduct", "productTruth", "readableText", "cleanBackground", "premiumColor", "commercialCrop"]),
@@ -1832,7 +1943,7 @@
       lastRun: null,
       lastImageUrl: "",
       lastTextColors: null,
-      generationCount: 0,
+      generationCounts: { ...DEFAULT_GENERATION_COUNTS },
       isGenerating: false
     };
 
@@ -1984,7 +2095,10 @@
     const downloadImage = document.getElementById("downloadImage");
     const settingsModal = document.getElementById("settingsModal");
     const generatePresetButton = document.getElementById("generatePreset");
-    const generationCount = document.getElementById("generationCount");
+    const generationTotalCount = document.getElementById("generationTotalCount");
+    const generationCountPro = document.getElementById("generationCountPro");
+    const generationCountFast = document.getElementById("generationCountFast");
+    const modelCountCards = document.querySelectorAll("[data-model-count]");
     const authForm = document.getElementById("authForm");
     const authUsername = document.getElementById("authUsername");
     const authPassword = document.getElementById("authPassword");
@@ -2036,8 +2150,37 @@
       resultFrame.style.setProperty("--poster-h", `${height}px`);
     }
 
+    function normalizeGenerationCounts(rawCounts = {}) {
+      return Object.keys(DEFAULT_GENERATION_COUNTS).reduce((counts, modelId) => {
+        const value = Number(rawCounts[modelId]);
+        counts[modelId] = Number.isFinite(value) ? Math.max(0, value) : 0;
+        return counts;
+      }, { ...DEFAULT_GENERATION_COUNTS });
+    }
+
+    function getGenerationTotal() {
+      return Object.values(state.generationCounts).reduce((total, value) => total + (Number(value) || 0), 0);
+    }
+
+    function incrementGenerationCount(modelId) {
+      const normalized = normalizeGenerationCounts(state.generationCounts);
+      const targetModel = Object.prototype.hasOwnProperty.call(normalized, modelId)
+        ? modelId
+        : IMAGE_MODEL_IDS.pro;
+      normalized[targetModel] += 1;
+      state.generationCounts = normalized;
+    }
+
     function updateGenerationCount() {
-      generationCount.textContent = String(state.generationCount || 0);
+      state.generationCounts = normalizeGenerationCounts(state.generationCounts);
+      generationTotalCount.textContent = String(getGenerationTotal());
+      generationCountPro.textContent = String(state.generationCounts[IMAGE_MODEL_IDS.pro] || 0);
+      generationCountFast.textContent = String(state.generationCounts[IMAGE_MODEL_IDS.fast] || 0);
+
+      const activeModel = fields.modalModel?.value || state.apiConfig.model;
+      modelCountCards.forEach(card => {
+        card.classList.toggle("is-active", card.dataset.modelCount === activeModel);
+      });
     }
 
     function setGenerateControlsDisabled(disabled) {
@@ -2188,8 +2331,15 @@
           state.optimizerProvider = saved.optimizerProvider;
         }
 
-        if (Number.isFinite(Number(saved.generationCount))) {
-          state.generationCount = Math.max(0, Number(saved.generationCount));
+        if (saved.generationCounts && typeof saved.generationCounts === "object") {
+          state.generationCounts = normalizeGenerationCounts(saved.generationCounts);
+        } else if (Number.isFinite(Number(saved.generationCount))) {
+          const legacyModel = Object.prototype.hasOwnProperty.call(DEFAULT_GENERATION_COUNTS, state.apiConfig.model)
+            ? state.apiConfig.model
+            : IMAGE_MODEL_IDS.pro;
+          state.generationCounts = normalizeGenerationCounts({
+            [legacyModel]: Math.max(0, Number(saved.generationCount))
+          });
         }
       } catch (error) {
         console.warn("Failed to load saved settings", error);
@@ -2206,12 +2356,14 @@
         deepseekConfig: state.deepseekConfig,
         geminiOptimizerConfig: state.geminiOptimizerConfig,
         optimizerProvider: state.optimizerProvider,
-        generationCount: state.generationCount
+        generationCounts: normalizeGenerationCounts(state.generationCounts),
+        generationCount: getGenerationTotal()
       }));
     }
 
     function syncModelFromControl() {
       state.apiConfig.model = fields.modalModel.value;
+      updateGenerationCount();
     }
 
     function updateRuntimeNotice() {
@@ -3157,7 +3309,7 @@
       renderPosterTextLayer(state.lastTextColors);
       canvasWrap.scrollTop = 0;
       resultMeta.textContent = `${runConfig.size.replace("x", " × ")} / ${getOutputSpec(runConfig.size).ratio} / 已生成，文字已前端排版`;
-      state.generationCount += 1;
+      incrementGenerationCount(runConfig.model);
       updateGenerationCount();
       persistSettings();
     }
@@ -3305,6 +3457,7 @@
       state.geminiOptimizerConfig.apiKey = fields.geminiOptimizerApiKey.value.trim();
       state.geminiOptimizerConfig.model = fields.geminiOptimizerModel.value.trim() || "gemini-3.1-flash-lite";
       persistSettings();
+      updateGenerationCount();
       refreshPrompt();
       closeSettings();
       setStatus("生成设置已保存到本地。", "success", 0, "真实状态：请求尚未发出");
