@@ -1396,11 +1396,19 @@
     }
 
     .download-link {
-      display: none;
+      display: inline-flex;
     }
 
-    .download-link.visible {
-      display: inline-flex;
+    .download-link[aria-disabled="true"] {
+      opacity: 0.45;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+
+    .download-link[aria-disabled="true"]:hover {
+      background: var(--accent-soft);
+      transform: none;
     }
 
     /* ═══════════════════════════════════════════════
@@ -1684,10 +1692,6 @@
           设置
         </button>
         <button class="button ghost" type="button" id="logoutAccess">退出</button>
-        <button class="button primary" type="button" id="generateImage">
-          <svg class="icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m12 3 1.8 5.1L19 10l-5.2 1.9L12 17l-1.8-5.1L5 10l5.2-1.9L12 3Z" fill="currentColor"/><path d="m18.5 14 1 2.7 2.5.8-2.5.9-1 2.6-1-2.6-2.5-.9 2.5-.8 1-2.7Z" fill="currentColor"/></svg>
-          生成海报
-        </button>
       </div>
     </header>
 
@@ -1806,7 +1810,7 @@
             </div>
             <div class="stage-status-actions">
               <button class="button ghost" type="button" id="retryGenerate" disabled>重新生成</button>
-              <a class="button secondary download-link" id="downloadImage" download="juxia-poster.png">下载 PNG</a>
+              <a class="button secondary download-link" id="downloadImage" download="juxia-poster.png" aria-disabled="true">下载 PNG</a>
             </div>
           </div>
           <div class="progress" aria-hidden="true">
@@ -2375,9 +2379,12 @@
     }
 
     function setGenerateControlsDisabled(disabled) {
-      document.getElementById("generateImage").disabled = disabled;
       document.getElementById("generateImageStage").disabled = disabled;
       if (disabled) retryGenerate.disabled = true;
+    }
+
+    function setDownloadReady(ready) {
+      downloadImage.setAttribute("aria-disabled", String(!ready));
     }
 
     function applyDesignPreset() {
@@ -3558,7 +3565,7 @@
 
       state.lastImageUrl = displaySource;
       downloadImage.href = "#";
-      downloadImage.classList.add("visible");
+      setDownloadReady(true);
       retryGenerate.disabled = false;
       resultFrame.style.aspectRatio = getOutputSpec(runConfig.size).ratioCss;
       fitPosterFrame();
@@ -3798,16 +3805,19 @@
       if (canvasWrap.scrollTop !== before) event.preventDefault();
     }, { passive: false });
 
-    document.getElementById("generateImage").addEventListener("click", () => generateImage());
     document.getElementById("generateImageStage").addEventListener("click", () => generateImage());
     retryGenerate.addEventListener("click", () => {
       if (state.lastRun) generateImage(state.lastRun);
     });
     downloadImage.addEventListener("click", async event => {
       event.preventDefault();
-      if (!state.lastImageUrl) return;
+      if (!state.lastImageUrl) {
+        setStatus("生成完成后可下载 PNG。", "warning", 0, "真实状态：暂无可下载图片");
+        return;
+      }
       const originalText = downloadImage.textContent;
       downloadImage.textContent = "合成中";
+      setDownloadReady(false);
       downloadImage.style.pointerEvents = "none";
       try {
         const dataUrl = await composePosterPng(state.lastImageUrl, state.lastRun || state.apiConfig);
@@ -3816,6 +3826,7 @@
         setStatus(error.message || "合成下载失败。", "error", 0, "真实状态：Canvas 合成未完成");
       } finally {
         downloadImage.textContent = originalText;
+        setDownloadReady(true);
         downloadImage.style.pointerEvents = "";
       }
     });
