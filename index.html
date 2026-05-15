@@ -2266,6 +2266,22 @@
     const DEEPSEEK_TIMEOUT_MS = 90000;
     const AUTH_TIMEOUT_MS = 45000;
 
+    function isPublicDeployment() {
+      return window.location.protocol === "https:"
+        && !["localhost", "127.0.0.1"].includes(window.location.hostname);
+    }
+
+    function lockPublicDeploymentToProxy() {
+      if (!isPublicDeployment()) return;
+      state.apiConfig.service = "local-proxy";
+      state.apiConfig.apiKey = "";
+    }
+
+    function configureServiceOptionsForDeployment() {
+      if (!isPublicDeployment()) return;
+      fields.serviceSelect.querySelector('option[value="gemini-direct"]')?.remove();
+    }
+
     function selectedRuleText() {
       return Array.from(state.selectedRules).map(key => ruleText[key]).filter(Boolean);
     }
@@ -2552,6 +2568,7 @@
           });
           state.generationStatsSource = "local";
         }
+        lockPublicDeploymentToProxy();
       } catch (error) {
         console.warn("Failed to load saved settings", error);
       }
@@ -2640,8 +2657,14 @@
       if (message.includes("429") || message.includes("rate limit")) {
         return "接口请求过于频繁或额度不足，请稍后重试。";
       }
-      if (message.includes("Failed to fetch")) {
-        return "请求没有成功发出或被浏览器拦截。请确认正在用 http://127.0.0.1:4177/ 打开页面，而不是 file:// 本地文件。";
+      if (message.includes("Failed to fetch") || message.includes("NetworkError") || message.includes("Load failed")) {
+        if (window.location.protocol === "file:") {
+          return "请求没有成功发出或被浏览器拦截。请用 http://127.0.0.1:4177/ 打开页面，而不是 file:// 本地文件。";
+        }
+        if (state.apiConfig.service === "gemini-direct") {
+          return "当前浏览器无法直连 Gemini。线上版本请改用 Cloudflare Worker 代理，或换可访问 Google API 的网络。";
+        }
+        return "浏览器没有连上 Cloudflare Worker。请用 Chrome 打开页面并检查网络；若当前网络无法访问 workers.dev，需要换网络、开启代理，或改用自定义域名。";
       }
       return message;
     }
@@ -3728,6 +3751,7 @@
       if (!outputSpecs[state.apiConfig.size]) {
         state.apiConfig.size = "1080x1440";
       }
+      lockPublicDeploymentToProxy();
       fields.serviceSelect.value = state.apiConfig.service;
       fields.modalModel.value = state.apiConfig.model;
       fields.modalSize.value = state.apiConfig.size;
@@ -3755,7 +3779,7 @@
     }
 
     function saveSettings() {
-      state.apiConfig.service = fields.serviceSelect.value;
+      state.apiConfig.service = isPublicDeployment() ? "local-proxy" : fields.serviceSelect.value;
       state.apiConfig.model = fields.modalModel.value;
       state.apiConfig.size = fields.modalSize.value;
       state.apiConfig.proxyEndpoint = fields.proxyEndpoint.value.trim();
@@ -4006,6 +4030,7 @@
       new ResizeObserver(() => fitPosterFrame()).observe(canvasWrap);
     }
 
+    configureServiceOptionsForDeployment();
     loadSavedSettings();
     hydrateSettingsFields();
     updateGenerationCount();
