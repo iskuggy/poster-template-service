@@ -1516,6 +1516,7 @@
       color: var(--danger);
       font-size: 12px;
       line-height: 1.5;
+      overflow-wrap: anywhere;
     }
 
     /* ═══════════════════════════════════════════════
@@ -2263,6 +2264,7 @@
     const ACCESS_STORAGE_KEY = "juxiaDesignLabAccess";
     const REQUEST_TIMEOUT_MS = 180000;
     const DEEPSEEK_TIMEOUT_MS = 90000;
+    const AUTH_TIMEOUT_MS = 45000;
 
     function selectedRuleText() {
       return Array.from(state.selectedRules).map(key => ruleText[key]).filter(Boolean);
@@ -2615,8 +2617,13 @@
 
     function formatApiError(error) {
       const message = error && error.message ? error.message : "生成失败。";
-      if (error && error.name === "AbortError") {
-        return "请求等待超过 3 分钟，已自动停止。请点“重试生成”。";
+      if (error && error.name === "TimeoutError") {
+        return error.timeoutMs >= REQUEST_TIMEOUT_MS
+          ? "请求等待超过 3 分钟，已自动停止。请点“重试生成”。"
+          : "请求连接超时，可能是网络或代理服务暂时不可达。请稍后重试。";
+      }
+      if ((error && error.name === "AbortError") || /signal is aborted|aborted without reason/i.test(message)) {
+        return "请求被浏览器或网络中断。请换 Chrome 或更稳定的网络后重试。";
       }
       if (message.includes("NO_IMAGE_DATA") || message.includes("did not include image data") || message.includes("没有返回图片数据") || message.includes("inlineData")) {
         return "模型这次没有返回图片。系统已自动重试过，通常是 Gemini 临时空响应、负载波动或安全策略误判。请点“重新生成”，或换 Nano Banana（更快）再试。";
@@ -2652,12 +2659,34 @@
 
     async function fetchWithTimeout(url, options = {}, timeoutMs = REQUEST_TIMEOUT_MS) {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), timeoutMs);
+      let didTimeout = false;
+      const timeout = setTimeout(() => {
+        didTimeout = true;
+        controller.abort();
+      }, timeoutMs);
       try {
         return await fetch(url, {
           ...options,
           signal: controller.signal
         });
+      } catch (error) {
+        const message = error?.message || "";
+        if (didTimeout) {
+          const timeoutError = new Error(`请求超时（${Math.round(timeoutMs / 1000)} 秒）。`);
+          timeoutError.name = "TimeoutError";
+          timeoutError.timeoutMs = timeoutMs;
+          timeoutError.url = url;
+          timeoutError.cause = error;
+          throw timeoutError;
+        }
+        if (error?.name === "AbortError" || /signal is aborted|aborted without reason/i.test(message)) {
+          const abortError = new Error("请求被浏览器或网络中断。");
+          abortError.name = "AbortError";
+          abortError.url = url;
+          abortError.cause = error;
+          throw abortError;
+        }
+        throw error;
       } finally {
         clearTimeout(timeout);
       }
@@ -2755,7 +2784,7 @@
       const response = await fetchWithTimeout(getAuthEndpoint(), {
         method: "GET",
         headers: makeBasicAuthHeader(username, password)
-      }, 15000);
+      }, AUTH_TIMEOUT_MS);
 
       if (!response.ok) {
         throw new Error(response.status === 401 ? "账号或密码不正确。" : `访问校验失败：HTTP ${response.status}`);
@@ -2765,6 +2794,18 @@
       if (!data.ok) {
         throw new Error("访问校验没有返回通过状态。");
       }
+    }
+
+    function formatAccessError(error) {
+      const message = error?.message || "";
+      if (message.includes("账号或密码不正确")) return message;
+      if (error?.name === "TimeoutError" || error?.name === "AbortError" || /signal is aborted|Failed to fetch|NetworkError|Load failed|被浏览器或网络中断/i.test(message)) {
+        return `登录校验连接超时或被浏览器拦截。请让同事先用 Chrome 直接打开 ${getAuthEndpoint()} 测试：如果打不开或一直转圈，说明当前网络/内置浏览器无法访问 Cloudflare Worker，需要换网络、换 Chrome，或给 Worker 绑定自定义域名。`;
+      }
+      if (/CORS|cross-origin/i.test(message)) {
+        return "登录校验被跨域策略拦截。请确认从 https://iskuggy.github.io/poster-template-service/ 打开页面。";
+      }
+      return message || "访问校验失败，请检查网络和账号密码。";
     }
 
     async function loginWithCredentials(username, password, remember = true) {
@@ -2786,7 +2827,7 @@
         unlockApp();
         setStatus("访问校验通过。", "success", 0, "真实状态：Worker 已确认内部凭据");
       } catch (error) {
-        setAuthError(error.message || "访问校验失败，请检查账号密码。");
+        setAuthError(formatAccessError(error));
       } finally {
         authSubmit.disabled = false;
         authSubmit.textContent = "进入工作台";
