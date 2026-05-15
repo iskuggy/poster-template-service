@@ -3592,6 +3592,8 @@
     }
 
     async function callLocalProxy(runConfig) {
+      statusDetail.textContent = "真实状态：正在读取参考图";
+      const imageData = await fileToBase64(state.referenceFile);
       statusDetail.textContent = "真实状态：正在发送到 Worker；若模型空图或前方有人生成，会自动重试/排队";
       const formData = new FormData();
       formData.append("prompt", runConfig.prompt);
@@ -3600,7 +3602,8 @@
       formData.append("aspect_ratio", getOutputSpec(runConfig.size).ratio);
       formData.append("model", runConfig.model);
       formData.append("service", runConfig.service);
-      formData.append("reference_image", state.referenceFile);
+      formData.append("reference_image_base64", imageData);
+      formData.append("reference_mime_type", state.referenceFile.type || "image/png");
       state.pendingGenerationStats = null;
 
       const response = await fetchWithTimeout(runConfig.proxyEndpoint, {

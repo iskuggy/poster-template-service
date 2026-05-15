@@ -151,31 +151,8 @@ function normalizeGeminiImage(data) {
   const imagePart = parts.find(part => part.inlineData || part.inline_data);
   const inlineData = imagePart?.inlineData || imagePart?.inline_data;
   if (!inlineData?.data) return null;
-  return {
-    mimeType: inlineData.mimeType || inlineData.mime_type || "image/png",
-    data: inlineData.data
-  };
-}
-
-function base64ToBytes(data) {
-  const binary = atob(data);
-  const bytes = new Uint8Array(binary.length);
-  for (let index = 0; index < binary.length; index += 1) {
-    bytes[index] = binary.charCodeAt(index);
-  }
-  return bytes;
-}
-
-function imageResponse(image, env, headers = {}) {
-  return new Response(base64ToBytes(image.data), {
-    status: 200,
-    headers: {
-      ...corsHeaders(env),
-      "Content-Type": image.mimeType,
-      "Cache-Control": "no-store",
-      ...headers
-    }
-  });
+  const mimeType = inlineData.mimeType || inlineData.mime_type || "image/png";
+  return `data:${mimeType};base64,${inlineData.data}`;
 }
 
 function extractGeminiText(data) {
@@ -214,7 +191,7 @@ function shouldRetryGemini(status, data) {
   return /high demand|temporar|try again|overloaded|rate limit|空|稍后/i.test(message);
 }
 
-async function requestGeminiImage({ prompt, model, file, imageData, env, attempt }) {
+async function requestGeminiImage({ prompt, model, mimeType, imageData, env, attempt }) {
   const retryNote = attempt > 1
     ? "\n\n重试硬约束：上一次响应没有可用图片或模型临时繁忙。本次必须返回 IMAGE 模态的完整海报底图，不要只返回文字说明，不要解释。"
     : "";
@@ -230,7 +207,7 @@ async function requestGeminiImage({ prompt, model, file, imageData, env, attempt
             { text: `${prompt}${retryNote}` },
             {
               inline_data: {
-                mime_type: file.type || "image/png",
+                mime_type: mimeType || "image/png",
                 data: imageData
               }
             }
@@ -268,35 +245,39 @@ async function handleGeminiImage(request, env) {
       const formData = await request.formData();
       const prompt = String(formData.get("prompt") || "").trim();
       const model = String(formData.get("model") || "gemini-3-pro-image-preview").trim();
+      const suppliedImageData = String(formData.get("reference_image_base64") || "").trim();
+      const suppliedMimeType = String(formData.get("reference_mime_type") || "").trim();
       const file = formData.get("reference_image");
 
       if (!prompt) {
         return jsonResponse({ error: { message: "Missing prompt." } }, 400, env);
       }
 
-      if (!file || typeof file.arrayBuffer !== "function") {
+      if (!suppliedImageData && (!file || typeof file.arrayBuffer !== "function")) {
         return jsonResponse({ error: { message: "Missing reference image." } }, 400, env);
       }
 
-      const imageData = arrayBufferToBase64(await file.arrayBuffer());
+      const imageData = suppliedImageData || arrayBufferToBase64(await file.arrayBuffer());
+      const mimeType = suppliedMimeType || file?.type || "image/png";
       const maxAttempts = Math.max(1, Math.min(4, Number(env.GEMINI_MAX_ATTEMPTS || 3)));
       let lastData = {};
       let lastStatus = 502;
       let lastSummary = "";
 
       for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-        const { upstream, data } = await requestGeminiImage({ prompt, model, file, imageData, env, attempt });
+        const { upstream, data } = await requestGeminiImage({ prompt, model, mimeType, imageData, env, attempt });
         lastData = data;
         lastStatus = upstream.status;
 
         if (upstream.ok) {
-          const image = normalizeGeminiImage(data);
-          if (image) {
+          const imageUrl = normalizeGeminiImage(data);
+          if (imageUrl) {
             const stats = await incrementGenerationStats(env, model);
-            return imageResponse(image, env, {
-              "X-Generation-Attempts": String(attempt),
-              "X-Generation-Stats-Source": stats ? "worker-kv" : "unavailable"
-            });
+            return jsonResponse({
+              imageUrl,
+              attempts: attempt,
+              stats: stats ? publicGenerationStats(stats) : null
+            }, 200, env);
           }
 
           lastSummary = geminiFailureSummary(data);
