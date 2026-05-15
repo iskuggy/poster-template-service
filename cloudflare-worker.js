@@ -151,8 +151,31 @@ function normalizeGeminiImage(data) {
   const imagePart = parts.find(part => part.inlineData || part.inline_data);
   const inlineData = imagePart?.inlineData || imagePart?.inline_data;
   if (!inlineData?.data) return null;
-  const mimeType = inlineData.mimeType || inlineData.mime_type || "image/png";
-  return `data:${mimeType};base64,${inlineData.data}`;
+  return {
+    mimeType: inlineData.mimeType || inlineData.mime_type || "image/png",
+    data: inlineData.data
+  };
+}
+
+function base64ToBytes(data) {
+  const binary = atob(data);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  return bytes;
+}
+
+function imageResponse(image, env, headers = {}) {
+  return new Response(base64ToBytes(image.data), {
+    status: 200,
+    headers: {
+      ...corsHeaders(env),
+      "Content-Type": image.mimeType,
+      "Cache-Control": "no-store",
+      ...headers
+    }
+  });
 }
 
 function extractGeminiText(data) {
@@ -267,14 +290,13 @@ async function handleGeminiImage(request, env) {
         lastStatus = upstream.status;
 
         if (upstream.ok) {
-          const imageUrl = normalizeGeminiImage(data);
-          if (imageUrl) {
+          const image = normalizeGeminiImage(data);
+          if (image) {
             const stats = await incrementGenerationStats(env, model);
-            return jsonResponse({
-              imageUrl,
-              attempts: attempt,
-              stats: stats ? publicGenerationStats(stats) : null
-            }, 200, env);
+            return imageResponse(image, env, {
+              "X-Generation-Attempts": String(attempt),
+              "X-Generation-Stats-Source": stats ? "worker-kv" : "unavailable"
+            });
           }
 
           lastSummary = geminiFailureSummary(data);
