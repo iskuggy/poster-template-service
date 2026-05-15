@@ -2645,6 +2645,12 @@
       if (message.includes("NO_IMAGE_DATA") || message.includes("did not include image data") || message.includes("没有返回图片数据") || message.includes("inlineData")) {
         return "模型这次没有返回图片。系统已自动重试过，通常是 Gemini 临时空响应、负载波动或安全策略误判。请点“重新生成”，或换 Nano Banana（更快）再试。";
       }
+      if (message.includes("GEMINI_UPSTREAM_FETCH_FAILED") || message.includes("Gemini upstream fetch failed")) {
+        return "已连上 Cloudflare Worker，但 Worker 调用 Gemini 时中断。通常是上游网络或 Gemini 临时异常，请稍后重新生成。";
+      }
+      if (message.includes("WORKER_GENERATION_FAILED")) {
+        return "已连上 Cloudflare Worker，但 Worker 在生成阶段失败。请稍后重试；如果连续出现，需要查看 Worker 日志。";
+      }
       if (message.includes("high demand") || message.includes("Spikes in demand")) {
         return "模型当前请求量较高，稍后重试。";
       }

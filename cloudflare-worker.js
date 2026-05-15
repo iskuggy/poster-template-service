@@ -196,26 +196,34 @@ async function requestGeminiImage({ prompt, model, file, imageData, env, attempt
     ? "\n\n重试硬约束：上一次响应没有可用图片或模型临时繁忙。本次必须返回 IMAGE 模态的完整海报底图，不要只返回文字说明，不要解释。"
     : "";
 
-  const upstream = await fetch(`${GEMINI_ENDPOINT}/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(env.GEMINI_API_KEY)}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      contents: [{
-        parts: [
-          { text: `${prompt}${retryNote}` },
-          {
-            inline_data: {
-              mime_type: file.type || "image/png",
-              data: imageData
+  let upstream;
+  try {
+    upstream = await fetch(`${GEMINI_ENDPOINT}/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(env.GEMINI_API_KEY)}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{
+          parts: [
+            { text: `${prompt}${retryNote}` },
+            {
+              inline_data: {
+                mime_type: file.type || "image/png",
+                data: imageData
+              }
             }
-          }
-        ]
-      }],
-      generationConfig: {
-        responseModalities: ["TEXT", "IMAGE"]
-      }
-    })
-  });
+          ]
+        }],
+        generationConfig: {
+          responseModalities: ["TEXT", "IMAGE"]
+        }
+      })
+    });
+  } catch (error) {
+    const upstreamError = new Error(`Gemini upstream fetch failed: ${error?.message || "unknown error"}`);
+    upstreamError.code = "GEMINI_UPSTREAM_FETCH_FAILED";
+    upstreamError.retryable = true;
+    throw upstreamError;
+  }
 
   const data = await upstream.json().catch(() => ({}));
   return { upstream, data };
@@ -233,75 +241,85 @@ async function handleGeminiImage(request, env) {
   }
 
   return runQueued(async () => {
-    const formData = await request.formData();
-    const prompt = String(formData.get("prompt") || "").trim();
-    const model = String(formData.get("model") || "gemini-3-pro-image-preview").trim();
-    const file = formData.get("reference_image");
+    try {
+      const formData = await request.formData();
+      const prompt = String(formData.get("prompt") || "").trim();
+      const model = String(formData.get("model") || "gemini-3-pro-image-preview").trim();
+      const file = formData.get("reference_image");
 
-    if (!prompt) {
-      return jsonResponse({ error: { message: "Missing prompt." } }, 400, env);
-    }
-
-    if (!file || typeof file.arrayBuffer !== "function") {
-      return jsonResponse({ error: { message: "Missing reference image." } }, 400, env);
-    }
-
-    const imageData = arrayBufferToBase64(await file.arrayBuffer());
-    const maxAttempts = Math.max(1, Math.min(4, Number(env.GEMINI_MAX_ATTEMPTS || 3)));
-    let lastData = {};
-    let lastStatus = 502;
-    let lastSummary = "";
-
-    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-      const { upstream, data } = await requestGeminiImage({ prompt, model, file, imageData, env, attempt });
-      lastData = data;
-      lastStatus = upstream.status;
-
-      if (upstream.ok) {
-        const imageUrl = normalizeGeminiImage(data);
-        if (imageUrl) {
-          const stats = await incrementGenerationStats(env, model);
-          return jsonResponse({
-            imageUrl,
-            attempts: attempt,
-            stats: stats ? publicGenerationStats(stats) : null
-          }, 200, env);
-        }
-
-        lastSummary = geminiFailureSummary(data);
-        if (attempt < maxAttempts) {
-          await sleep(900 * attempt);
-          continue;
-        }
-        break;
+      if (!prompt) {
+        return jsonResponse({ error: { message: "Missing prompt." } }, 400, env);
       }
 
-      lastSummary = data.error?.message || JSON.stringify(data) || `HTTP ${upstream.status}`;
-      if (attempt < maxAttempts && shouldRetryGemini(upstream.status, data)) {
-        await sleep(1200 * attempt);
-        continue;
+      if (!file || typeof file.arrayBuffer !== "function") {
+        return jsonResponse({ error: { message: "Missing reference image." } }, 400, env);
+      }
+
+      const imageData = arrayBufferToBase64(await file.arrayBuffer());
+      const maxAttempts = Math.max(1, Math.min(4, Number(env.GEMINI_MAX_ATTEMPTS || 3)));
+      let lastData = {};
+      let lastStatus = 502;
+      let lastSummary = "";
+
+      for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+        const { upstream, data } = await requestGeminiImage({ prompt, model, file, imageData, env, attempt });
+        lastData = data;
+        lastStatus = upstream.status;
+
+        if (upstream.ok) {
+          const imageUrl = normalizeGeminiImage(data);
+          if (imageUrl) {
+            const stats = await incrementGenerationStats(env, model);
+            return jsonResponse({
+              imageUrl,
+              attempts: attempt,
+              stats: stats ? publicGenerationStats(stats) : null
+            }, 200, env);
+          }
+
+          lastSummary = geminiFailureSummary(data);
+          if (attempt < maxAttempts) {
+            await sleep(900 * attempt);
+            continue;
+          }
+          break;
+        }
+
+        lastSummary = data.error?.message || JSON.stringify(data) || `HTTP ${upstream.status}`;
+        if (attempt < maxAttempts && shouldRetryGemini(upstream.status, data)) {
+          await sleep(1200 * attempt);
+          continue;
+        }
+
+        return jsonResponse({
+          error: {
+            message: lastSummary,
+            retryable: shouldRetryGemini(upstream.status, data)
+          },
+          attempts: attempt
+        }, upstream.status, env);
       }
 
       return jsonResponse({
         error: {
-          message: lastSummary,
-          retryable: shouldRetryGemini(upstream.status, data)
+          message: `Gemini 连续 ${maxAttempts} 次没有返回图片数据，请稍后点“重新生成”。`,
+          code: "NO_IMAGE_DATA",
+          retryable: true,
+          detail: lastSummary || "No inline image part in Gemini response."
         },
-        attempts: attempt
-      }, upstream.status, env);
+        attempts: maxAttempts,
+        upstreamStatus: lastStatus,
+        upstream: env.DEBUG_GEMINI_RESPONSE === "true" ? lastData : undefined
+      }, 502, env);
+    } catch (error) {
+      return jsonResponse({
+        error: {
+          message: error?.message || "Worker failed before Gemini returned a response.",
+          code: error?.code || "WORKER_GENERATION_FAILED",
+          retryable: error?.retryable !== false
+        }
+      }, 502, env);
     }
-
-    return jsonResponse({
-      error: {
-        message: `Gemini 连续 ${maxAttempts} 次没有返回图片数据，请稍后点“重新生成”。`,
-        code: "NO_IMAGE_DATA",
-        retryable: true,
-        detail: lastSummary || "No inline image part in Gemini response."
-      },
-      attempts: maxAttempts,
-      upstreamStatus: lastStatus,
-      upstream: env.DEBUG_GEMINI_RESPONSE === "true" ? lastData : undefined
-    }, 502, env);
   });
 }
 
