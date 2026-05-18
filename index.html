@@ -2378,6 +2378,10 @@
         && !["localhost", "127.0.0.1"].includes(window.location.hostname);
     }
 
+    function isLocalPreview() {
+      return ["localhost", "127.0.0.1"].includes(window.location.hostname);
+    }
+
     function lockPublicDeploymentToProxy() {
       if (!isPublicDeployment()) return;
       state.apiConfig.service = "local-proxy";
@@ -3016,6 +3020,18 @@
       authError.textContent = message || "";
     }
 
+    function readSavedAccessCredentials() {
+      try {
+        const raw = localStorage.getItem(ACCESS_STORAGE_KEY);
+        if (!raw) return null;
+        const saved = JSON.parse(raw);
+        return saved.username && saved.password ? saved : null;
+      } catch {
+        localStorage.removeItem(ACCESS_STORAGE_KEY);
+        return null;
+      }
+    }
+
     function unlockApp() {
       document.body.classList.remove("auth-pending");
       setAuthError("");
@@ -3080,11 +3096,22 @@
 
     async function initializeAccessGate() {
       authUsername.value = state.apiConfig.accessUsername || "juxia-team";
+      if (isLocalPreview()) {
+        const saved = readSavedAccessCredentials();
+        if (saved) {
+          state.apiConfig.accessUsername = saved.username;
+          state.apiConfig.accessPassword = saved.password;
+          authUsername.value = saved.username;
+          authPassword.value = saved.password;
+        }
+        document.getElementById("logoutAccess").hidden = true;
+        unlockApp();
+        setStatus("本地测试模式已就绪。", "success", 0, "真实状态：本地预览不需要入口密码");
+        return;
+      }
       try {
-        const raw = localStorage.getItem(ACCESS_STORAGE_KEY);
-        if (!raw) return;
-        const saved = JSON.parse(raw);
-        if (!saved.username || !saved.password) return;
+        const saved = readSavedAccessCredentials();
+        if (!saved) return;
         authUsername.value = saved.username;
         authPassword.value = saved.password;
         await loginWithCredentials(saved.username, saved.password, true);
