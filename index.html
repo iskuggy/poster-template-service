@@ -532,7 +532,7 @@
     .poster-brand-copy {
       top: 5.2%;
       left: 50%;
-      transform: translateX(-50%);
+      transform: translate(calc(-50% + var(--manual-offset-x, 0px)), var(--manual-offset-y, 0px));
       color: var(--poster-brand-color, #171412);
       font-size: clamp(10px, calc(var(--poster-w, 520px) * 0.026), 22px);
       line-height: 1.1;
@@ -550,7 +550,7 @@
       top: 11.5%;
       left: 50%;
       width: 82%;
-      transform: translateX(-50%);
+      transform: translate(calc(-50% + var(--manual-offset-x, 0px)), var(--manual-offset-y, 0px));
       text-align: center;
       color: var(--poster-title-color, #171412);
       text-shadow: var(--poster-title-shadow, 0 1px 8px rgba(255,255,255,0.58));
@@ -586,7 +586,7 @@
     .poster-selling-copy {
       left: 50%;
       bottom: 4.8%;
-      transform: translateX(-50%);
+      transform: translate(calc(-50% + var(--manual-offset-x, 0px)), var(--manual-offset-y, 0px));
       width: 86%;
       color: var(--poster-selling-color, #f7f4ed);
       font-size: clamp(11px, calc(var(--poster-w, 520px) * 0.025), 23px);
@@ -615,6 +615,31 @@
     .poster-text-layer[data-layout="editorial"] .poster-title-group {
       top: 12.8%;
       width: 76%;
+    }
+
+    .poster-text-layer.manual-edit {
+      pointer-events: auto;
+    }
+
+    .poster-text-layer.manual-edit [data-text-block] {
+      cursor: grab;
+      touch-action: none;
+      border-radius: 6px;
+      outline: 1px dashed transparent;
+      outline-offset: clamp(4px, calc(var(--poster-w, 520px) * 0.012), 10px);
+      transition:
+        outline-color 160ms ease,
+        background-color 160ms ease;
+    }
+
+    .poster-text-layer.manual-edit [data-text-block]:hover,
+    .poster-text-layer.manual-edit [data-text-block].is-dragging {
+      outline-color: color-mix(in srgb, var(--accent) 76%, transparent);
+      background: color-mix(in srgb, var(--surface) 18%, transparent);
+    }
+
+    .poster-text-layer.manual-edit [data-text-block].is-dragging {
+      cursor: grabbing;
     }
 
     /* ── Empty Poster ── */
@@ -832,6 +857,68 @@
       color: var(--text-tertiary);
       font-size: 11px;
       line-height: 1.5;
+    }
+
+    .copy-layout-tools {
+      margin-top: 14px;
+      padding-top: 14px;
+      border-top: 1px solid var(--border-light);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .switch-field {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--text-secondary);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .switch-field input {
+      position: absolute;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .switch-track {
+      position: relative;
+      width: 38px;
+      height: 22px;
+      flex: 0 0 auto;
+      border-radius: 999px;
+      background: #ddd7cf;
+      transition: background 160ms ease;
+    }
+
+    .switch-track::after {
+      content: "";
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: #fffdf9;
+      box-shadow: 0 1px 4px rgba(31, 24, 18, 0.18);
+      transition: transform 160ms ease;
+    }
+
+    .switch-field input:checked + .switch-track {
+      background: var(--accent);
+    }
+
+    .switch-field input:checked + .switch-track::after {
+      transform: translateX(16px);
+    }
+
+    .switch-field input:focus-visible + .switch-track {
+      box-shadow: 0 0 0 3px var(--accent-glow);
     }
 
     /* ═══════════════════════════════════════════════
@@ -1781,6 +1868,15 @@
               <label for="sellingPoint">底部卖点</label>
               <input id="sellingPoint" value="29L｜72H">
             </div>
+
+            <div class="copy-layout-tools">
+              <label class="switch-field" for="manualTextAdjust">
+                <span>手动调整文案</span>
+                <input id="manualTextAdjust" type="checkbox">
+                <span class="switch-track" aria-hidden="true"></span>
+              </label>
+              <button class="button ghost" type="button" id="resetTextLayout" disabled>重置位置</button>
+            </div>
           </div>
 
           <div class="runtime-notice" id="runtimeNotice">
@@ -2036,6 +2132,7 @@
       headline: document.getElementById("headline"),
       subtitle: document.getElementById("subtitle"),
       sellingPoint: document.getElementById("sellingPoint"),
+      manualTextAdjust: document.getElementById("manualTextAdjust"),
       sceneBrief: document.getElementById("sceneBrief"),
       style: document.getElementById("style"),
       composition: document.getElementById("composition"),
@@ -2064,6 +2161,12 @@
     const DEFAULT_GENERATION_COUNTS = {
       [IMAGE_MODEL_IDS.pro]: 0,
       [IMAGE_MODEL_IDS.fast]: 0
+    };
+
+    const DEFAULT_TEXT_OFFSETS = {
+      brand: { x: 0, y: 0 },
+      title: { x: 0, y: 0 },
+      selling: { x: 0, y: 0 }
     };
 
     const state = {
@@ -2095,7 +2198,9 @@
       generationStatsSource: "pending",
       generationStatsUpdatedAt: "",
       pendingGenerationStats: null,
-      isGenerating: false
+      isGenerating: false,
+      manualTextAdjustEnabled: false,
+      textOffsets: createTextOffsets()
     };
 
     const ruleText = {
@@ -2244,6 +2349,7 @@
     const fileName = document.getElementById("fileName");
     const retryGenerate = document.getElementById("retryGenerate");
     const downloadImage = document.getElementById("downloadImage");
+    const resetTextLayout = document.getElementById("resetTextLayout");
     const settingsModal = document.getElementById("settingsModal");
     const generatePresetButton = document.getElementById("generatePreset");
     const statsScope = document.getElementById("statsScope");
@@ -2260,6 +2366,7 @@
     const rememberAccess = document.getElementById("rememberAccess");
     let progressTimer = null;
     let elapsedTimer = null;
+    let manualTextDrag = null;
     const SETTINGS_STORAGE_KEY = "juxiaDesignLabSettings";
     const ACCESS_STORAGE_KEY = "juxiaDesignLabAccess";
     const REQUEST_TIMEOUT_MS = 180000;
@@ -2280,6 +2387,113 @@
     function configureServiceOptionsForDeployment() {
       if (!isPublicDeployment()) return;
       fields.serviceSelect.querySelector('option[value="gemini-direct"]')?.remove();
+    }
+
+    function createTextOffsets() {
+      return Object.fromEntries(
+        Object.entries(DEFAULT_TEXT_OFFSETS).map(([key, value]) => [key, { ...value }])
+      );
+    }
+
+    function getActiveTextOffsets() {
+      return state.manualTextAdjustEnabled ? state.textOffsets : DEFAULT_TEXT_OFFSETS;
+    }
+
+    function resetManualTextOffsets() {
+      state.textOffsets = createTextOffsets();
+      applyManualTextOffsets();
+    }
+
+    function getPosterFrameSize() {
+      const rect = resultFrame.getBoundingClientRect();
+      return {
+        width: rect.width || resultFrame.clientWidth || 1,
+        height: rect.height || resultFrame.clientHeight || 1
+      };
+    }
+
+    function applyManualTextOffsets(layer = resultFrame.querySelector(".poster-text-layer")) {
+      if (!layer) return;
+      const { width, height } = getPosterFrameSize();
+      const offsets = getActiveTextOffsets();
+      layer.classList.toggle("manual-edit", state.manualTextAdjustEnabled);
+      layer.querySelectorAll("[data-text-block]").forEach(element => {
+        const offset = offsets[element.dataset.textBlock] || DEFAULT_TEXT_OFFSETS.brand;
+        element.style.setProperty("--manual-offset-x", `${offset.x * width}px`);
+        element.style.setProperty("--manual-offset-y", `${offset.y * height}px`);
+      });
+    }
+
+    function clampDraggedTextBlock(element, key, candidate) {
+      const frameRect = resultFrame.getBoundingClientRect();
+      const margin = Math.max(8, frameRect.width * 0.02);
+      state.textOffsets[key] = candidate;
+      applyManualTextOffsets();
+      const blockRect = element.getBoundingClientRect();
+      const clamped = { ...candidate };
+
+      if (blockRect.left < frameRect.left + margin) {
+        clamped.x += (frameRect.left + margin - blockRect.left) / frameRect.width;
+      }
+      if (blockRect.right > frameRect.right - margin) {
+        clamped.x -= (blockRect.right - (frameRect.right - margin)) / frameRect.width;
+      }
+      if (blockRect.top < frameRect.top + margin) {
+        clamped.y += (frameRect.top + margin - blockRect.top) / frameRect.height;
+      }
+      if (blockRect.bottom > frameRect.bottom - margin) {
+        clamped.y -= (blockRect.bottom - (frameRect.bottom - margin)) / frameRect.height;
+      }
+
+      return clamped;
+    }
+
+    function beginManualTextDrag(event) {
+      if (!state.manualTextAdjustEnabled || event.button !== 0) return;
+      const block = event.target.closest("[data-text-block]");
+      if (!block) return;
+      event.preventDefault();
+      const key = block.dataset.textBlock;
+      const current = state.textOffsets[key] || DEFAULT_TEXT_OFFSETS.brand;
+      manualTextDrag = {
+        key,
+        block,
+        pointerId: event.pointerId,
+        startX: event.clientX,
+        startY: event.clientY,
+        startOffset: { ...current }
+      };
+      block.classList.add("is-dragging");
+      block.setPointerCapture?.(event.pointerId);
+    }
+
+    function moveManualTextDrag(event) {
+      if (!manualTextDrag || event.pointerId !== manualTextDrag.pointerId) return;
+      const { width, height } = getPosterFrameSize();
+      const candidate = {
+        x: manualTextDrag.startOffset.x + (event.clientX - manualTextDrag.startX) / width,
+        y: manualTextDrag.startOffset.y + (event.clientY - manualTextDrag.startY) / height
+      };
+      state.textOffsets[manualTextDrag.key] = clampDraggedTextBlock(
+        manualTextDrag.block,
+        manualTextDrag.key,
+        candidate
+      );
+      applyManualTextOffsets();
+    }
+
+    function endManualTextDrag(event) {
+      if (!manualTextDrag || (event.pointerId && event.pointerId !== manualTextDrag.pointerId)) return;
+      manualTextDrag.block.classList.remove("is-dragging");
+      manualTextDrag.block.releasePointerCapture?.(manualTextDrag.pointerId);
+      manualTextDrag = null;
+    }
+
+    function setManualTextAdjustEnabled(enabled) {
+      state.manualTextAdjustEnabled = Boolean(enabled);
+      fields.manualTextAdjust.checked = state.manualTextAdjustEnabled;
+      resetTextLayout.disabled = !state.manualTextAdjustEnabled;
+      applyManualTextOffsets();
     }
 
     function selectedRuleText() {
@@ -2318,6 +2532,7 @@
       resultFrame.style.height = `${height}px`;
       resultFrame.style.setProperty("--poster-w", `${width}px`);
       resultFrame.style.setProperty("--poster-h", `${height}px`);
+      applyManualTextOffsets();
     }
 
     function normalizeGenerationCounts(rawCounts = {}) {
@@ -3134,14 +3349,15 @@
       layer.className = "poster-text-layer";
       layer.dataset.layout = fields.designMode.value || "cinematic";
       layer.innerHTML = `
-        <div class="poster-brand-copy">${escapeHTML(copy.brand)}</div>
-        <div class="poster-title-group">
+        <div class="poster-brand-copy" data-text-block="brand">${escapeHTML(copy.brand)}</div>
+        <div class="poster-title-group" data-text-block="title">
           <div class="poster-title-copy">${escapeHTML(copy.headline)}</div>
           <div class="poster-subtitle-copy">${escapeHTML(copy.subtitle)}</div>
         </div>
-        <div class="poster-selling-copy">${escapeHTML(copy.sellingPoint)}</div>
+        <div class="poster-selling-copy" data-text-block="selling">${escapeHTML(copy.sellingPoint)}</div>
       `;
       resultFrame.appendChild(layer);
+      applyManualTextOffsets(layer);
     }
 
     function getPosterFontFamily() {
@@ -3250,6 +3466,7 @@
       const copy = getPosterCopy();
       const layout = fields.designMode.value || "cinematic";
       const fontFamily = getPosterFontFamily();
+      const offsets = getActiveTextOffsets();
       ctx.save();
       ctx.textBaseline = "top";
 
@@ -3258,11 +3475,15 @@
       applyCanvasTextStyle(ctx, colors.brand, width * 0.008);
       ctx.textAlign = "center";
       ctx.font = `600 ${Math.max(22, Math.min(42, width * 0.026))}px ${fontFamily}`;
-      ctx.fillText(ellipsizeCanvasText(ctx, copy.brand.toUpperCase(), width * 0.86), width / 2, height * 0.058);
+      ctx.fillText(
+        ellipsizeCanvasText(ctx, copy.brand.toUpperCase(), width * 0.86),
+        width / 2 + offsets.brand.x * width,
+        height * 0.058 + offsets.brand.y * height
+      );
 
-      const groupTop = height * (layout === "editorial" ? 0.128 : layout === "premium" ? 0.096 : 0.108);
+      const groupTop = height * (layout === "editorial" ? 0.128 : layout === "premium" ? 0.096 : 0.108) + offsets.title.y * height;
       const maxWidth = width * (layout === "editorial" ? 0.76 : layout === "premium" ? 0.78 : 0.82);
-      const left = width / 2;
+      const left = width / 2 + offsets.title.x * width;
       ctx.textAlign = "center";
       applyCanvasTextStyle(ctx, colors.title, width * 0.01);
 
@@ -3289,7 +3510,11 @@
       ctx.textAlign = "center";
       const sellingSize = Math.max(20, Math.min(32, width * 0.025));
       ctx.font = `600 ${sellingSize}px ${fontFamily}`;
-      ctx.fillText(ellipsizeCanvasText(ctx, copy.sellingPoint, width * 0.86), width / 2, height * 0.94);
+      ctx.fillText(
+        ellipsizeCanvasText(ctx, copy.sellingPoint, width * 0.86),
+        width / 2 + offsets.selling.x * width,
+        height * 0.94 + offsets.selling.y * height
+      );
       ctx.restore();
     }
 
@@ -3637,6 +3862,7 @@
       resultFrame.appendChild(img);
 
       state.lastImageUrl = displaySource;
+      resetManualTextOffsets();
       downloadImage.href = "#";
       setDownloadReady(true);
       retryGenerate.disabled = false;
@@ -3883,6 +4109,23 @@
     retryGenerate.addEventListener("click", () => {
       if (state.lastRun) generateImage(state.lastRun);
     });
+    fields.manualTextAdjust.addEventListener("change", event => {
+      setManualTextAdjustEnabled(event.target.checked);
+      setStatus(
+        event.target.checked ? "已开启手动文案调整。" : "已关闭手动文案调整。",
+        "success",
+        0,
+        "真实状态：下载 PNG 会按当前文案位置合成"
+      );
+    });
+    resetTextLayout.addEventListener("click", () => {
+      resetManualTextOffsets();
+      setStatus("文案位置已重置。", "success", 0, "真实状态：已恢复自动排版位置");
+    });
+    resultFrame.addEventListener("pointerdown", beginManualTextDrag);
+    document.addEventListener("pointermove", moveManualTextDrag);
+    document.addEventListener("pointerup", endManualTextDrag);
+    document.addEventListener("pointercancel", endManualTextDrag);
     downloadImage.addEventListener("click", async event => {
       event.preventDefault();
       if (!state.lastImageUrl) {
@@ -4041,6 +4284,7 @@
 
     configureServiceOptionsForDeployment();
     loadSavedSettings();
+    setManualTextAdjustEnabled(false);
     hydrateSettingsFields();
     updateGenerationCount();
     refreshPrompt();
