@@ -1872,10 +1872,10 @@
             <div class="copy-layout-tools">
               <label class="switch-field" for="manualTextAdjust">
                 <span>手动调整文案</span>
-                <input id="manualTextAdjust" type="checkbox">
+                <input id="manualTextAdjust" type="checkbox" checked>
                 <span class="switch-track" aria-hidden="true"></span>
               </label>
-              <button class="button ghost" type="button" id="resetTextLayout" disabled>重置位置</button>
+              <button class="button ghost" type="button" id="resetTextLayout">重置位置</button>
             </div>
           </div>
 
@@ -2199,7 +2199,7 @@
       generationStatsUpdatedAt: "",
       pendingGenerationStats: null,
       isGenerating: false,
-      manualTextAdjustEnabled: false,
+      manualTextAdjustEnabled: true,
       textOffsets: createTextOffsets()
     };
 
@@ -4311,7 +4311,7 @@
 
     configureServiceOptionsForDeployment();
     loadSavedSettings();
-    setManualTextAdjustEnabled(false);
+    setManualTextAdjustEnabled(true);
     hydrateSettingsFields();
     updateGenerationCount();
     refreshPrompt();
