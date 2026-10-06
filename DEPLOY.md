@@ -55,7 +55,7 @@ https://juxia-poster-api.skuggy3860.workers.dev/api/gemini-image
 
 ## GPT Image 2.5
 
-- 模型列表的第一项为 `GPT Image 2.5`，官方模型 ID 为 `gpt-image-2.5-sunburst`。
+- 默认生成模型为 `GPT Image 2.5`，官方模型 ID 为 `gpt-image-2.5-sunburst`；浏览器已保存的模型选择仍优先使用。
 - 通过同一个 Worker 的 `/api/openai-image` 接口调用 OpenAI `/v1/images/edits`，携带产品参考图；密钥只存储在 Worker 的 `OPENAI_API_KEY` secret 中。
 - 固定每次生成一张 PNG，质量为 `high`；仅在 OpenAI 成功返回图片后累计一次。失败、空响应和缺少密钥不计数，不自动重试付费出图请求。
 - 复用现有 `generation-stats:v1` KV 记录，保留两个 Nano Banana 模型的历史次数，新增 OpenAI 计数默认为 0，总次数包含三个模型。

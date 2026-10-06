@@ -1997,8 +1997,8 @@
             <div class="field" style="margin-top:0;">
               <label for="modalModel">生成模型</label>
               <select id="modalModel">
-                <option value="gpt-image-2.5-sunburst">GPT Image 2.5</option>
-                <option value="gemini-3-pro-image-preview" selected>Nano Banana Pro（最强）</option>
+                <option value="gpt-image-2.5-sunburst" selected>GPT Image 2.5</option>
+                <option value="gemini-3-pro-image-preview">Nano Banana Pro（最强）</option>
                 <option value="gemini-2.5-flash-image">Nano Banana（更快）</option>
               </select>
             </div>
@@ -2186,7 +2186,7 @@
       selectedRules: new Set(["completeProduct", "productTruth", "readableText", "cleanBackground", "premiumColor", "commercialCrop"]),
       apiConfig: {
         service: "local-proxy",
-        model: "gemini-3-pro-image-preview",
+        model: IMAGE_MODEL_IDS.openai,
         size: "1080x1440",
         proxyEndpoint: "https://juxia-poster-api.skuggy3860.workers.dev/api/gemini-image",
         apiKey: "",
