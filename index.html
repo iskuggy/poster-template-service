@@ -1201,6 +1201,10 @@
       gap: 8px;
     }
 
+    .model-count[data-model-count="gpt-image-2.5-sunburst"] {
+      grid-column: 1 / -1;
+    }
+
     .model-count {
       position: relative;
       overflow: hidden;
@@ -1993,6 +1997,7 @@
             <div class="field" style="margin-top:0;">
               <label for="modalModel">生成模型</label>
               <select id="modalModel">
+                <option value="gpt-image-2.5-sunburst">GPT Image 2.5</option>
                 <option value="gemini-3-pro-image-preview" selected>Nano Banana Pro（最强）</option>
                 <option value="gemini-2.5-flash-image">Nano Banana（更快）</option>
               </select>
@@ -2003,6 +2008,11 @@
                 <strong><span id="generationTotalCount">0</span> 张</strong>
               </div>
               <div class="model-count-grid">
+                <div class="model-count" data-model-count="gpt-image-2.5-sunburst">
+                  <span class="model-count-label">GPT Image 2.5</span>
+                  <div class="model-count-value"><strong id="generationCountOpenAI">0</strong><span>张</span></div>
+                  <span class="model-count-note">OpenAI · 产品参考图生图</span>
+                </div>
                 <div class="model-count" data-model-count="gemini-3-pro-image-preview">
                   <span class="model-count-label">Nano Banana Pro</span>
                   <div class="model-count-value"><strong id="generationCountPro">0</strong><span>张</span></div>
@@ -2154,11 +2164,13 @@
     };
 
     const IMAGE_MODEL_IDS = {
+      openai: "gpt-image-2.5-sunburst",
       pro: "gemini-3-pro-image-preview",
       fast: "gemini-2.5-flash-image"
     };
 
     const DEFAULT_GENERATION_COUNTS = {
+      [IMAGE_MODEL_IDS.openai]: 0,
       [IMAGE_MODEL_IDS.pro]: 0,
       [IMAGE_MODEL_IDS.fast]: 0
     };
@@ -2328,6 +2340,7 @@
         ["gemini-2.5-flash-image", "Nano Banana（更快）"]
       ],
       "local-proxy": [
+        ["gpt-image-2.5-sunburst", "GPT Image 2.5"],
         ["gemini-3-pro-image-preview", "Nano Banana Pro（最强）"],
         ["gemini-2.5-flash-image", "Nano Banana（更快）"]
       ]
@@ -2355,6 +2368,7 @@
     const statsScope = document.getElementById("statsScope");
     const generationStatsStatus = document.getElementById("generationStatsStatus");
     const generationTotalCount = document.getElementById("generationTotalCount");
+    const generationCountOpenAI = document.getElementById("generationCountOpenAI");
     const generationCountPro = document.getElementById("generationCountPro");
     const generationCountFast = document.getElementById("generationCountFast");
     const modelCountCards = document.querySelectorAll("[data-model-count]");
@@ -2590,6 +2604,7 @@
     function updateGenerationCount() {
       state.generationCounts = normalizeGenerationCounts(state.generationCounts);
       generationTotalCount.textContent = String(getGenerationTotal());
+      generationCountOpenAI.textContent = String(state.generationCounts[IMAGE_MODEL_IDS.openai] || 0);
       generationCountPro.textContent = String(state.generationCounts[IMAGE_MODEL_IDS.pro] || 0);
       generationCountFast.textContent = String(state.generationCounts[IMAGE_MODEL_IDS.fast] || 0);
 
@@ -2641,6 +2656,12 @@
     }
 
     function getModelPromptStrategy(model = state.apiConfig.model) {
+      if (model === IMAGE_MODEL_IDS.openai) {
+        return [
+          "模型策略：OpenAI GPT Image 2.5。以参考图为准保留产品外观、比例、材质、颜色和结构，构建真实商业摄影场景。",
+          "只生成无字海报底图，不生成品牌、标题或卖点文字；为前端排版保留自然、低干扰的文字区域。"
+        ];
+      }
       if (model === "gemini-2.5-flash-image") {
         return [
           "模型策略：Nano Banana 快速版。使用更短、更确定的摄影指令，减少复杂排版要求。",
@@ -2848,7 +2869,7 @@
     function finishProgress(message, type) {
       clearInterval(progressTimer);
       clearInterval(elapsedTimer);
-      setStatus(message, type, type === "success" ? 100 : 0, type === "success" ? "真实状态：Gemini 已返回图片" : "真实状态：请求已结束");
+      setStatus(message, type, type === "success" ? 100 : 0, type === "success" ? "真实状态：模型已返回图片" : "真实状态：请求已结束");
     }
 
     function formatApiError(error) {
@@ -3844,9 +3865,12 @@
     }
 
     async function callLocalProxy(runConfig) {
+      const isOpenAI = runConfig.model === IMAGE_MODEL_IDS.openai;
       statusDetail.textContent = "真实状态：正在读取参考图";
       const imageData = await fileToBase64(state.referenceFile);
-      statusDetail.textContent = "真实状态：正在发送到 Worker；若模型空图或前方有人生成，会自动重试/排队";
+      statusDetail.textContent = isOpenAI
+        ? "真实状态：正在发送到 Worker，等待 OpenAI 生图或排队"
+        : "真实状态：正在发送到 Worker；若模型空图或前方有人生成，会自动重试/排队";
       const formData = new FormData();
       formData.append("prompt", runConfig.prompt);
       formData.append("negative_prompt", fields.negative.value.trim());
@@ -3858,7 +3882,10 @@
       formData.append("reference_mime_type", state.referenceFile.type || "image/png");
       state.pendingGenerationStats = null;
 
-      const response = await fetchWithTimeout(runConfig.proxyEndpoint, {
+      const endpoint = isOpenAI
+        ? new URL("/api/openai-image", runConfig.proxyEndpoint).toString()
+        : runConfig.proxyEndpoint;
+      const response = await fetchWithTimeout(endpoint, {
         method: "POST",
         headers: getProxyAuthHeaders(),
         body: formData

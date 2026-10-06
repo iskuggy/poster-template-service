@@ -3,3 +3,6 @@ node_modules/
 .wrangler/
 .playwright-cli/
 *.bak
+.dev.vars
+.env
+.env.*

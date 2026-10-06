@@ -1,7 +1,9 @@
 const GEMINI_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models";
 const DEEPSEEK_ENDPOINT = "https://api.deepseek.com/chat/completions";
+const OPENAI_IMAGE_ENDPOINT = "https://api.openai.com/v1/images/edits";
 const STATS_KEY = "generation-stats:v1";
 const IMAGE_MODEL_IDS = {
+  openai: "gpt-image-2.5-sunburst",
   pro: "gemini-3-pro-image-preview",
   fast: "gemini-2.5-flash-image"
 };
@@ -39,6 +41,7 @@ function unauthorized(env) {
 function defaultGenerationStats() {
   return {
     counts: {
+      [IMAGE_MODEL_IDS.openai]: 0,
       [IMAGE_MODEL_IDS.pro]: 0,
       [IMAGE_MODEL_IDS.fast]: 0
     },
@@ -326,6 +329,103 @@ async function handleGeminiImage(request, env) {
   });
 }
 
+// Match each existing output ratio with dimensions divisible by 16.
+// The browser still exports at the user's selected final dimensions.
+const OPENAI_IMAGE_SIZES = {
+  "1080x1440": "1056x1408",
+  "1242x1660": "1248x1664",
+  "1080x1350": "1088x1360",
+  "1080x1080": "1088x1088",
+  "1440x1080": "1408x1056"
+};
+
+async function handleOpenAIImage(request, env) {
+  if (!env.OPENAI_API_KEY) {
+    return jsonResponse({ error: { message: "请先为 Worker 配置 OPENAI_API_KEY。" } }, 503, env);
+  }
+
+  return runQueued(async () => {
+    let timeout;
+    try {
+      const formData = await request.formData();
+      const prompt = String(formData.get("prompt") || "").trim();
+      const model = String(formData.get("model") || IMAGE_MODEL_IDS.openai).trim();
+      const size = OPENAI_IMAGE_SIZES[String(formData.get("size") || "1080x1440")];
+      if (model !== IMAGE_MODEL_IDS.openai || !size) {
+        return jsonResponse({ error: { message: "Unsupported OpenAI image model or output size." } }, 400, env);
+      }
+      if (!prompt || prompt.length > 32000) {
+        return jsonResponse({ error: { message: "Prompt must contain 1–32000 characters." } }, 400, env);
+      }
+
+      const suppliedImageData = String(formData.get("reference_image_base64") || "").trim();
+      let image = formData.get("reference_image");
+      if (suppliedImageData) {
+        if (suppliedImageData.length > Math.ceil(20 * 1024 * 1024 / 3) * 4) {
+          return jsonResponse({ error: { message: "Reference image must be no larger than 20 MB." } }, 400, env);
+        }
+        let binary;
+        try {
+          binary = atob(suppliedImageData);
+        } catch {
+          return jsonResponse({ error: { message: "Invalid reference image base64." } }, 400, env);
+        }
+        const mimeType = String(formData.get("reference_mime_type") || "image/png").trim();
+        image = new Blob([Uint8Array.from(binary, char => char.charCodeAt(0))], { type: mimeType });
+      }
+      if (!image || typeof image.arrayBuffer !== "function" || !image.size) {
+        return jsonResponse({ error: { message: "Missing reference image." } }, 400, env);
+      }
+      if (image.size > 20 * 1024 * 1024 || !["image/png", "image/jpeg", "image/webp"].includes(image.type)) {
+        return jsonResponse({ error: { message: "Reference image must be PNG, JPEG or WebP, no larger than 20 MB." } }, 400, env);
+      }
+
+      const upstreamForm = new FormData();
+      upstreamForm.append("model", model);
+      upstreamForm.append("prompt", prompt);
+      upstreamForm.append("image[]", image, `reference.${image.type === "image/jpeg" ? "jpg" : image.type.split("/")[1]}`);
+      upstreamForm.append("size", size);
+      upstreamForm.append("quality", "high");
+      upstreamForm.append("output_format", "png");
+      upstreamForm.append("n", "1");
+
+      const controller = new AbortController();
+      timeout = setTimeout(() => controller.abort(), 150000);
+      const upstream = await fetch(OPENAI_IMAGE_ENDPOINT, {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${env.OPENAI_API_KEY}` },
+        body: upstreamForm,
+        signal: controller.signal
+      });
+      const data = await upstream.json().catch(() => ({}));
+      if (!upstream.ok) {
+        return jsonResponse({ error: {
+          message: data.error?.message || `OpenAI returned HTTP ${upstream.status}`,
+          code: data.error?.code || "OPENAI_UPSTREAM_ERROR"
+        } }, upstream.status, env);
+      }
+      const imageData = data.data?.[0]?.b64_json;
+      if (typeof imageData !== "string" || !imageData.trim()) {
+        return jsonResponse({ error: { message: "OpenAI 没有返回图片数据，请重新生成。", code: "OPENAI_NO_IMAGE_DATA" } }, 502, env);
+      }
+
+      const stats = await incrementGenerationStats(env, model);
+      return jsonResponse({
+        imageUrl: `data:image/png;base64,${imageData}`,
+        attempts: 1,
+        stats: stats ? publicGenerationStats(stats) : null
+      }, 200, env);
+    } catch (error) {
+      return jsonResponse({ error: {
+        message: error?.name === "AbortError" ? "OpenAI 生图请求超时，请稍后重新生成。" : "OpenAI 生图请求失败，请稍后重新生成。",
+        code: error?.name === "AbortError" ? "OPENAI_TIMEOUT" : "OPENAI_GENERATION_FAILED"
+      } }, 502, env);
+    } finally {
+      clearTimeout(timeout);
+    }
+  });
+}
+
 async function handleDeepseekPreset(request, env) {
   if (!env.DEEPSEEK_API_KEY) {
     return jsonResponse({ error: { message: "Missing DEEPSEEK_API_KEY secret." } }, 500, env);
@@ -389,6 +489,10 @@ export default {
 
     if (url.pathname === "/api/gemini-image" && request.method === "POST") {
       return handleGeminiImage(request, env);
+    }
+
+    if (url.pathname === "/api/openai-image" && request.method === "POST") {
+      return handleOpenAIImage(request, env);
     }
 
     if (url.pathname === "/api/deepseek-optimize" && request.method === "POST") {
