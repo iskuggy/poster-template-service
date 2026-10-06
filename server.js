@@ -116,7 +116,8 @@ function serveStatic(req, res) {
   const requestedPath = decodeURIComponent(url.pathname === "/" ? "/index.html" : url.pathname);
   const filePath = path.normalize(path.join(ROOT, requestedPath));
 
-  if (!filePath.startsWith(ROOT)) {
+  const relativePath = path.relative(ROOT, filePath);
+  if (relativePath.startsWith("..") || path.isAbsolute(relativePath) || relativePath.split(path.sep).some(segment => segment.startsWith("."))) {
     res.writeHead(403);
     res.end("Forbidden");
     return;
@@ -147,6 +148,6 @@ const server = http.createServer((req, res) => {
   serveStatic(req, res);
 });
 
-server.listen(PORT, () => {
-  console.log(`JUXIA DESIGN LAB running at http://127.0.0.1:${PORT}/`);
+server.listen(PORT, "127.0.0.1", () => {
+  console.log(`JUXIA DESIGN LAB running at http://127.0.0.1:${server.address().port}/`);
 });

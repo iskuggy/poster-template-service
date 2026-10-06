@@ -64,6 +64,14 @@ https://juxia-poster-api.skuggy3860.workers.dev/api/gemini-image
 
 本地回归检查：`node --test tests/*.test.mjs`。
 
+本地密钥放在 `.dev.vars` 中：
+
+```dotenv
+OPENAI_API_KEY="你的 OpenAI API Key"
+```
+
+`.dev.vars` 和 `.env` 文件已忽略提交，本地预览服务只监听 `127.0.0.1`，并阻止访问隐藏文件（包括密钥文件和 `.git`）。可以用 `wrangler secret bulk .dev.vars` 把本地密钥配置到 Worker。
+
 ## 发布到 GitHub Pages
 
 把 `index.html` 推到 GitHub 仓库，并在仓库设置里开启 Pages。
