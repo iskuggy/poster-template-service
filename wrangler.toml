@@ -4,6 +4,10 @@ compatibility_date = "2026-05-12"
 workers_dev = true
 preview_urls = false
 
+# 2026-10-20 计费审计：单次调用 CPU 上限（30 天实测峰值的数倍）
+[limits]
+cpu_ms = 1000
+
 [vars]
 ALLOWED_ORIGIN = "https://iskuggy.github.io"
 
