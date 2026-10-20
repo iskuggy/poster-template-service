@@ -80,6 +80,8 @@ OPENAI_API_KEY="你的 OpenAI API Key"
 
 ## 安全建议
 
+- 2026-10-20 起配置了单次调用 CPU 上限 `[limits] cpu_ms = 1000`（`wrangler.toml` 与 `wrangler.example.toml` 都有，已对线上生效）。过去 30 天单次最高 167ms；等待 Gemini/OpenAI 返回的时间不计入 CPU。若出现 `exceededCpu`，按实际峰值调大后重新部署。
+
 - `ACCESS_PASSWORD` 用长随机密码，不要用简单口令。
 - Cloudflare Worker 的 `ALLOWED_ORIGIN` 建议改成你的 GitHub Pages 域名。
 - 不要再把 Gemini / DeepSeek API Key 写进 `index.html`。

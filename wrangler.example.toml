@@ -2,6 +2,10 @@ name = "juxia-poster-api"
 main = "cloudflare-worker.js"
 compatibility_date = "2026-05-12"
 
+# 2026-10-20 计费审计：单次调用 CPU 上限（30 天实测峰值的数倍）
+[limits]
+cpu_ms = 1000
+
 [vars]
 # 改成你的 GitHub Pages 地址，例如：
 # ALLOWED_ORIGIN = "https://your-name.github.io"
